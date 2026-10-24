@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Exam'1
+GenericName=Entraînement à l'examen radioamateur
+GenericName[en]=Amateur radio exam trainer
+Comment=Examens blancs du certificat d'opérateur radioamateur (ANFR)
+Comment[en]=Mock exams for the French amateur radio operator certificate
+Exec=exam1
+Icon=exam1
+Terminal=false
+Categories=Education;Network;HamRadio;
+Keywords=radioamateur;examen;ANFR;QCM;ham;radio;
+StartupWMClass=exam1

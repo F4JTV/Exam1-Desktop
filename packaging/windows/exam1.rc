@@ -1,0 +1,32 @@
+// Windows resources: application icon and version information.
+#include <winver.h>
+
+IDI_ICON1 ICON "exam1.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 4,0,1,0
+ PRODUCTVERSION 4,0,1,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040c04b0"
+        BEGIN
+            VALUE "CompanyName", "Exam'1 Community"
+            VALUE "FileDescription", "Exam'1 - entrainement a l'examen radioamateur"
+            VALUE "FileVersion", "4.0.1"
+            VALUE "InternalName", "exam1"
+            VALUE "OriginalFilename", "exam1.exe"
+            VALUE "ProductName", "Exam'1"
+            VALUE "ProductVersion", "4.0.1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x40c, 1200
+    END
+END
