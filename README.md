@@ -6,6 +6,8 @@ L'application utilise la base de questions Exam'1, tenue à jour par Jean-Luc F6
 
 L'écran d'examen reproduit l'interface que l'ANFR utilise désormais pour l'examen (Evalbox). Toutes les questions sont présentées dans une seule liste verticale. Les propositions sont des cases à cocher, les questions peuvent être épinglées, une grille numérotée montre les questions répondues et épinglées, et le candidat valide l'ensemble une seule fois avec **Finaliser l'examen**.
 
+![Écran d'accueil d'Exam'1 sous Windows](capture-accueil.png)
+
 ## Fonctionnalités
 
 - **Examens blancs dans les conditions de l'ANFR**
@@ -120,6 +122,7 @@ qml/                interface utilisateur
 packaging/          scripts fetch_bank, compilation et paquets Linux et Windows
 third_party/miniz   lecture des archives ZIP (MIT)
 resources/          polices (OFL) et icônes
+capture-accueil.png capture d'écran affichée dans ce README
 ```
 
 ## Remerciements
