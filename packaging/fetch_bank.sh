@@ -9,6 +9,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="$HERE/data"
 TMP="$(mktemp -d)"
 OK=0
+# The REF server answers 403 to curl's default User-Agent: identify as the application does.
+VERSION="$(sed -n 's/^ *VERSION \([0-9.]*\).*/\1/p' "$HERE/../CMakeLists.txt" 2>/dev/null | head -1)"
+USER_AGENT="Exam1-Qt/${VERSION:-dev}"
 cleanup() {
     if [ "$OK" = 1 ]; then
         rm -rf "$TMP"
@@ -25,7 +28,7 @@ fetch() {
     rm -f "$out"
     for attempt in 1 2 3 4 5; do
         rc=0
-        code="$(curl -fL -C - --connect-timeout 20 --speed-limit 1024 --speed-time 60 \
+        code="$(curl -fL -C - -A "$USER_AGENT" --connect-timeout 20 --speed-limit 1024 --speed-time 60 \
                      -w '%{http_code}' -o "$out" "$url")" || rc=$?
         [ "$rc" -eq 0 ] && return 0
         # Client errors (404, 403...) will not go away by retrying.
