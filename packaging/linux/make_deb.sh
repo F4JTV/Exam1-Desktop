@@ -6,14 +6,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 if [[ "${1:-}" == "--fetch-bank" ]]; then
-    "$ROOT/packaging/fetch_bank.sh"
+    bash "$ROOT/packaging/fetch_bank.sh"
 fi
 
 VERSION="$(sed -n 's/^ *VERSION \([0-9.]*\)$/\1/p' "$ROOT/CMakeLists.txt" | head -1)"
 ARCH="$(dpkg --print-architecture)"
 STAGE="$ROOT/build/deb/exam1_${VERSION}_${ARCH}"
 
-[[ -x "$ROOT/build/exam1" ]] || "$ROOT/packaging/linux/build_linux.sh"
+[[ -x "$ROOT/build/exam1" ]] || bash "$ROOT/packaging/linux/build_linux.sh"
 cmake --build "$ROOT/build" --parallel
 
 rm -rf "$STAGE"

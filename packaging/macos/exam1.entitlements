@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Entitlements used only when signing with a Developer ID (hardened runtime). -->
+<plist version="1.0">
+<dict>
+    <!-- The QML engine compiles JavaScript to machine code at run time. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+</dict>
+</plist>

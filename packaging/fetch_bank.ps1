@@ -6,6 +6,15 @@ param([string]$BaseUrl = "https://exam1.r-e-f.org/assets/")
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+# The REF server rejects some tool User-Agents (curl gets a 403): identify as the application does.
+$version = "dev"
+$cmake = Join-Path $PSScriptRoot "..\CMakeLists.txt"
+if (Test-Path -LiteralPath $cmake) {
+    $m = Select-String -LiteralPath $cmake -Pattern '^\s*VERSION\s+([0-9.]+)' | Select-Object -First 1
+    if ($m) { $version = $m.Matches[0].Groups[1].Value }
+}
+$UserAgent = "Exam1-Qt/$version"
+
 # Invoke-WebRequest (Windows PowerShell 5.1) does not compare the number of bytes received
 # with the Content-Length announced by the server: a connection cut short during the
 # 35 MB image archive leaves a truncated file without any error. This downloader checks
@@ -24,7 +33,7 @@ function Save-Url([string]$Url, [string]$Path, [int]$Attempts = 5) {
         $completed = $false
         try {
             $req = [Net.HttpWebRequest]::Create($Url)
-            $req.UserAgent = "Exam1-fetch_bank"
+            $req.UserAgent = $UserAgent
             $req.Timeout = 60000
             $req.ReadWriteTimeout = 60000
             $req.AutomaticDecompression = [Net.DecompressionMethods]::None
