@@ -25,7 +25,7 @@ else()
 endif()
 
 # --- application ---------------------------------------------------------------------
-qt_add_executable(exam1 WIN32
+qt_add_executable(exam1 WIN32 MACOSX_BUNDLE
     src/main.cpp
     src/appinfo.cpp src/appinfo.h
     src/appsettings.cpp src/appsettings.h
@@ -43,6 +43,21 @@ qt_add_executable(exam1 WIN32
 
 if(WIN32)
     target_sources(exam1 PRIVATE packaging/windows/exam1.rc)
+endif()
+
+if(APPLE)
+    # Application bundle Exam1.app (see packaging/macos/build_macos.sh).
+    set(EXAM1_ICNS packaging/macos/exam1.icns)
+    target_sources(exam1 PRIVATE ${EXAM1_ICNS})
+    set_source_files_properties(${EXAM1_ICNS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    set_target_properties(exam1 PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in"
+        MACOSX_BUNDLE_GUI_IDENTIFIER org.exam1.Exam1
+        MACOSX_BUNDLE_BUNDLE_NAME "Exam'1"
+        MACOSX_BUNDLE_ICON_FILE exam1.icns
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_COPYRIGHT "GNU GPL v3")
 endif()
 
 target_compile_definitions(exam1 PRIVATE EXAM1_VERSION="${PROJECT_VERSION}")
@@ -136,12 +151,17 @@ target_link_libraries(exam1 PRIVATE
     Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Sql Qt6::Network Qt6::Svg
     miniz)
 
-set_target_properties(exam1 PROPERTIES
-    OUTPUT_NAME exam1
-    MACOSX_BUNDLE FALSE)
+# exam1 / exam1.exe on Linux and Windows; Exam1.app on macOS.
+if(APPLE)
+    set_target_properties(exam1 PROPERTIES OUTPUT_NAME Exam1)
+else()
+    set_target_properties(exam1 PROPERTIES OUTPUT_NAME exam1)
+endif()
 
 include(GNUInstallDirs)
-install(TARGETS exam1 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS exam1
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(UNIX AND NOT APPLE)
     install(FILES packaging/linux/exam1.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
     install(FILES resources/icons/exam1.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)

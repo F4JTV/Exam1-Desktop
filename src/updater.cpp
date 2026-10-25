@@ -71,6 +71,7 @@ QString Updater::findSeedDir()
         candidates << env;
     const QString appDir = QCoreApplication::applicationDirPath();
     candidates << QDir(appDir).filePath(QStringLiteral("data"))
+               << QDir(appDir).filePath(QStringLiteral("../Resources/data"))    // macOS: Exam1.app/Contents/Resources
                << QDir(appDir).filePath(QStringLiteral("../share/exam1/data"))
                << QStringLiteral("/usr/share/exam1/data");
     for (const QString &c : candidates)

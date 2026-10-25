@@ -1,6 +1,6 @@
 # Exam'1 (édition Qt 6 / QML)
 
-Examens blancs du certificat d'opérateur du service amateur (radioamateur, ANFR), développés en C++17, Qt 6 et QML pour Windows et Linux.
+Examens blancs du certificat d'opérateur du service amateur (radioamateur, ANFR), développés en C++17, Qt 6 et QML pour Windows, Linux et macOS.
 
 L'application utilise la base de questions Exam'1, tenue à jour par Jean-Luc F6GPX. La base est mise à jour chaque trimestre, et l'application peut installer elle-même les nouvelles versions.
 
@@ -58,6 +58,7 @@ Chaque base est enregistrée sous forme d'une base SQLite (`bank.sqlite`) et d'u
 
 - Windows : `%APPDATA%\Exam1\Exam1`
 - Linux : `~/.local/share/Exam1/Exam1`
+- macOS : `~/Library/Application Support/Exam1/Exam1`
 
 ## Compilation
 
@@ -94,6 +95,29 @@ Il produit :
 
 Si aucun chemin de Qt n'est indiqué, le script utilise `%QTDIR%` ou le plus récent `C:\Qt\6.*\msvc20*_64`.
 
+### macOS (Qt 6.8 ou plus récent, Xcode)
+
+Sur un Mac :
+
+```bash
+packaging/macos/build_macos.sh ~/Qt/6.8.3/macos --fetch-bank
+```
+
+Le script compile une application universelle (Apple Silicon et Intel, macOS 12 ou plus récent). Il ajoute la base dans `Exam1.app/Contents/Resources/data` et déploie Qt avec `macdeployqt`. Il produit `build-mac/Exam1.app` et `build-mac/Exam1-<version>.dmg`.
+
+Sans certificat Apple, l'application reçoit une signature « ad hoc ». macOS demande alors une confirmation au premier lancement : *Réglages Système → Confidentialité et sécurité → Ouvrir quand même*. Avec un compte Apple Developer, les variables `MACOS_SIGN_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID` et `APPLE_APP_PASSWORD` permettent de signer l'application et de la faire notariser (voir l'en-tête du script).
+
+L'icône `packaging/macos/exam1.icns` est générée par `tools/make_macos_icon.py`.
+
+### Compilation automatique (GitHub Actions)
+
+Le workflow `.github/workflows/release.yml` compile les trois paquets sur les machines de GitHub :
+
+- **Tag `v*`** (par exemple `git tag v4.0.1 && git push origin v4.0.1`) : l'installeur Windows, le paquet Ubuntu 24.04 et l'image disque macOS sont joints à un brouillon de release. Il reste à ajouter les notes de version et à publier.
+- **Run workflow** (onglet *Actions*) : les paquets sont compilés sans release et peuvent être téléchargés depuis la page de l'exécution, par exemple pour faire essayer la version macOS sur un Mac.
+
+La base de questions est téléchargée une seule fois sur le serveur du REF, puis intégrée aux trois paquets. Si ce téléchargement échoue, relancez le workflow manuellement en décochant *Bundle the current question bank* : l'application téléchargera alors la base au premier lancement. Les secrets à définir pour signer la version macOS sont décrits en tête du workflow.
+
 ## Notes de développement
 
 Ces variables d'environnement facilitent les tests :
@@ -119,7 +143,9 @@ src/                partie C++
 qml/                interface utilisateur
   pages/ExamPage.qml        écran d'examen sur le modèle de l'interface ANFR / Evalbox
   components/EvalQuestion.qml, EvalCheck.qml
-packaging/          scripts fetch_bank, compilation et paquets Linux et Windows
+packaging/          scripts fetch_bank, compilation et paquets Linux, Windows et macOS
+.github/workflows/  compilation automatique des trois paquets (release.yml)
+tools/              génération de l'icône macOS
 third_party/miniz   lecture des archives ZIP (MIT)
 resources/          polices (OFL) et icônes
 capture-accueil.png capture d'écran affichée dans ce README
