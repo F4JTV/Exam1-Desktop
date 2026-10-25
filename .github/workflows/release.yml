@@ -1,0 +1,172 @@
+# Builds the Windows installer, the Ubuntu 24.04 package and the macOS disk image.
+#
+# - Pushing a tag "v*" (e.g. v4.0.1) builds the three packages and creates a draft
+#   GitHub release with them: add the release notes, then publish it.
+# - "Run workflow" (Actions tab) builds the packages without creating a release; they can
+#   be downloaded from the run page, e.g. to have the macOS build tried on a Mac first.
+#
+# macOS signing is optional. Without the secrets below, the application is signed ad hoc and
+# macOS asks for confirmation on first launch. With an Apple Developer account, set:
+#   MACOS_CERTIFICATE           Developer ID Application certificate (.p12), base64-encoded
+#   MACOS_CERTIFICATE_PASSWORD  password of the .p12 file
+#   MACOS_SIGN_IDENTITY         "Developer ID Application: Name (TEAMID)"
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD   notarization (app-specific password)
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      bundle_bank:
+        description: Bundle the current question bank in the packages
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  QT_VERSION: 6.8.3
+
+jobs:
+  bank:
+    name: Question bank
+    # Downloaded once from the REF server and shared by the three builds.
+    if: github.event_name == 'push' || inputs.bundle_bank
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download the question bank
+        run: bash packaging/fetch_bank.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bank
+          path: |
+            packaging/data/questions.json
+            packaging/data/series.json
+            packaging/data/questions.zip
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  windows:
+    name: Windows installer
+    needs: bank
+    if: ${{ !cancelled() && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        if: needs.bank.result == 'success'
+        with:
+          name: bank
+          path: packaging/data
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2022_64
+          cache: true
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+      - name: Build
+        shell: cmd
+        run: call packaging\windows\build_windows.bat "%QT_ROOT_DIR%"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: exam1-windows
+          path: build-win/Exam1-*-setup.exe
+          if-no-files-found: error
+
+  linux:
+    name: Ubuntu 24.04 package
+    needs: bank
+    if: ${{ !cancelled() && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        if: needs.bank.result == 'success'
+        with:
+          name: bank
+          path: packaging/data
+      - name: Build
+        run: |
+          bash packaging/linux/build_linux.sh --install-deps
+          bash packaging/linux/make_deb.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: exam1-linux
+          path: build/exam1_*.deb
+          if-no-files-found: error
+
+  macos:
+    name: macOS disk image
+    needs: bank
+    if: ${{ !cancelled() && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
+    runs-on: macos-15
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        if: needs.bank.result == 'success'
+        with:
+          name: bank
+          path: packaging/data
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+      - name: Import the signing certificate
+        if: env.MACOS_CERTIFICATE != ''
+        env:
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$MACOS_CERTIFICATE_PASSWORD" \
+                           -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          rm -f "$RUNNER_TEMP/certificate.p12"
+      - name: Build
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: bash packaging/macos/build_macos.sh "$QT_ROOT_DIR"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: exam1-macos
+          path: build-mac/Exam1-*.dmg
+          if-no-files-found: error
+
+  release:
+    name: Draft GitHub release
+    needs: [windows, linux, macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: exam1-*
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          files: dist/*
+          fail_on_unmatched_files: true
