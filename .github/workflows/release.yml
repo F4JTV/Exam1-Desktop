@@ -1,7 +1,14 @@
-# Builds the Windows installer, the Ubuntu 24.04 package and the macOS disk image.
+# Builds the Windows installer, the macOS disk image and one Debian package per Linux
+# distribution: Ubuntu 24.04, Ubuntu 26.04, Debian 12 and Debian 13. Each .deb is built in a
+# container of its distribution, against that distribution's own Qt 6 packages.
 #
-# - Pushing a tag "v*" (e.g. v4.0.1) builds the three packages and creates a draft
-#   GitHub release with them: add the release notes, then publish it.
+# Everything follows the version of CMakeLists.txt (project VERSION):
+# - Pushing the tag "v<version>" (e.g. v4.0.2) builds all the packages and creates a draft
+#   GitHub release "Exam'1 <version>" with them. Its notes are made by tools/release_notes.py
+#   from the "## <version>" section of CHANGELOG.md and packaging/release/notes.md.in.
+#   Check the draft, then publish it.
+#   The workflow stops at once if the tag does not match the version of CMakeLists.txt, or if
+#   CHANGELOG.md has no section for that version.
 # - "Run workflow" (Actions tab) builds the packages without creating a release; they can
 #   be downloaded from the run page, e.g. to have the macOS build tried on a Mac first.
 #
@@ -30,9 +37,38 @@ env:
   QT_VERSION: 6.8.3
 
 jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Read the version of CMakeLists.txt
+        id: version
+        run: |
+          VERSION="$(sed -n 's/^ *VERSION \([0-9.]*\)$/\1/p' CMakeLists.txt | head -1)"
+          if [ -z "$VERSION" ]; then
+            echo "::error::No VERSION found in CMakeLists.txt"
+            exit 1
+          fi
+          echo "Version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check the tag and CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION $VERSION of CMakeLists.txt (expected tag v$VERSION)."
+            exit 1
+          fi
+          python3 tools/release_notes.py --check
+
   bank:
     name: Question bank
-    # Downloaded once from the REF server and shared by the three builds.
+    # Downloaded once from the REF server and shared by all the builds.
+    needs: version
     if: github.event_name == 'push' || inputs.bundle_bank
     runs-on: ubuntu-24.04
     steps:
@@ -52,8 +88,10 @@ jobs:
 
   windows:
     name: Windows installer
-    needs: bank
-    if: ${{ !cancelled() && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
+    needs: [version, bank]
+    if: >-
+      ${{ !cancelled() && needs.version.result == 'success'
+          && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
@@ -84,10 +122,27 @@ jobs:
           if-no-files-found: error
 
   linux:
-    name: Ubuntu 24.04 package
-    needs: bank
-    if: ${{ !cancelled() && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
+    name: Linux package (${{ matrix.name }})
+    needs: [version, bank]
+    if: >-
+      ${{ !cancelled() && needs.version.result == 'success'
+          && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
     runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    strategy:
+      # One distribution failing does not stop the others.
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Ubuntu 24.04, image: 'ubuntu:24.04', id: ubuntu24.04 }
+          - { name: Ubuntu 26.04, image: 'ubuntu:26.04', id: ubuntu26.04 }
+          - { name: Debian 12, image: 'debian:12', id: debian12 }
+          - { name: Debian 13, image: 'debian:13', id: debian13 }
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEBIAN_FRONTEND: noninteractive
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -101,14 +156,16 @@ jobs:
           bash packaging/linux/make_deb.sh
       - uses: actions/upload-artifact@v7
         with:
-          name: exam1-linux
+          name: exam1-${{ matrix.id }}
           path: build/exam1_*.deb
           if-no-files-found: error
 
   macos:
     name: macOS disk image
-    needs: bank
-    if: ${{ !cancelled() && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
+    needs: [version, bank]
+    if: >-
+      ${{ !cancelled() && needs.version.result == 'success'
+          && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
     runs-on: macos-15
     env:
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
@@ -154,19 +211,34 @@ jobs:
 
   release:
     name: Draft GitHub release
-    needs: [windows, linux, macos]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, bank, windows, linux, macos]
+    # Windows and macOS are required; the Linux packages that were built are attached even if
+    # one distribution failed (check the run before publishing the draft).
+    if: >-
+      ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.version.result == 'success'
+          && needs.windows.result == 'success' && needs.macos.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           pattern: exam1-*
           path: dist
           merge-multiple: true
+      - uses: actions/download-artifact@v8
+        if: needs.bank.result == 'success'
+        with:
+          name: bank
+          path: bank
+      - name: Write the release notes
+        # "## <version>" of CHANGELOG.md + packaging/release/notes.md.in + bundled bank version.
+        run: python3 tools/release_notes.py --bank bank -o "$RUNNER_TEMP/notes.md"
       - uses: softprops/action-gh-release@v3
         with:
+          name: Exam'1 ${{ needs.version.outputs.version }}
+          body_path: ${{ runner.temp }}/notes.md
           draft: true
           files: dist/*
           fail_on_unmatched_files: true
