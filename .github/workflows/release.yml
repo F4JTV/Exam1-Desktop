@@ -1,4 +1,4 @@
-# Builds the Windows installer, the macOS disk image and one Debian package per Linux
+# Builds the Windows installer and portable zip, the macOS disk image and one Debian package per Linux
 # distribution: Ubuntu 24.04, Ubuntu 26.04, Debian 12 and Debian 13. Each .deb is built in a
 # container of its distribution, against that distribution's own Qt 6 packages.
 #
@@ -118,7 +118,9 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: exam1-windows
-          path: build-win/Exam1-*-setup.exe
+          path: |
+            build-win/Exam1-*-setup.exe
+            build-win/Exam1_v*_Windows_portable.zip
           if-no-files-found: error
 
   linux:
