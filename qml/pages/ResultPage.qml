@@ -71,8 +71,12 @@ Page {
                     anchors.rightMargin: 40
                     spacing: 18
 
-                    RowLayout {
+                    GridLayout {
                         Layout.fillWidth: true
+                        // Duration beside the verdict on a wide window, under it on a narrow one.
+                        columns: content.width >= 760 * Style.k ? 2 : 1
+                        columnSpacing: 24
+                        rowSpacing: 8
                         ColumnLayout {
                             spacing: 2
                             Layout.fillWidth: true
@@ -105,9 +109,10 @@ Page {
                         }
                     }
 
-                    RowLayout {
+                    // The marks of the two tests side by side, one under the other when they do not fit.
+                    Flow {
                         Layout.fillWidth: true
-                        spacing: 56
+                        spacing: 40
                         Repeater {
                             model: page.partList
                             delegate: ColumnLayout {
@@ -140,7 +145,6 @@ Page {
                                 }
                             }
                         }
-                        Item { Layout.fillWidth: true }
                     }
 
                     Text {

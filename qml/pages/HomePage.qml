@@ -33,8 +33,8 @@ Page {
         property string detail: ""
         property string note: ""
         hoverEnabled: true
-        implicitWidth: 300
-        implicitHeight: 178
+        implicitWidth: Math.round(300 * Style.k)
+        implicitHeight: Math.max(Math.round(178 * Style.k), col.implicitHeight)
         Accessible.name: heading + ". " + detail
         background: Rectangle {
             radius: Style.r2
@@ -43,6 +43,7 @@ Page {
             border.color: Style.yellow
         }
         contentItem: ColumnLayout {
+            id: col
             spacing: 6
             Text {
                 text: "Épreuve de"
@@ -67,7 +68,7 @@ Page {
                 color: Style.sheetInk
                 Layout.leftMargin: 26
             }
-            Item { Layout.fillHeight: true }
+            Item { Layout.fillHeight: true; Layout.minimumHeight: 16 }
             RowLayout {
                 Layout.leftMargin: 26
                 Layout.rightMargin: 22
@@ -202,19 +203,29 @@ Page {
             }
 
             // Hero: the two official tests, as yellow question sheets on the slate desk.
+            // Text beside the sheets when there is room for both, above them otherwise; the two
+            // sheets side by side when they fit, one above the other on a very narrow window.
             Rectangle {
+                id: hero
                 Layout.fillWidth: true
-                implicitHeight: heroRow.implicitHeight + 88
+                implicitHeight: heroGrid.implicitHeight + 88
                 color: Style.slate
 
-                RowLayout {
-                    id: heroRow
+                readonly property real room: page.width - 96
+                readonly property real platesWidth: 2 * Math.round(300 * Style.k) + 18
+                readonly property bool sideBySide: room >= Math.max(platesWidth, 640 * Style.k) + 40 + 340 * Style.k
+                readonly property bool platesInRow: room >= platesWidth
+
+                GridLayout {
+                    id: heroGrid
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.leftMargin: 48
                     anchors.rightMargin: 48
-                    spacing: 40
+                    columns: hero.sideBySide ? 2 : 1
+                    columnSpacing: 40
+                    rowSpacing: 28
 
                     Column {
                         id: heroText
@@ -233,7 +244,7 @@ Page {
                             styleColor: "#0B1117"
                         }
                         Text {
-                            width: Math.min(heroText.width, 520)
+                            width: Math.min(heroText.width, 640 * Style.k)
                             text: "Entraînez-vous au certificat d'opérateur radioamateur dans les conditions de l'examen ANFR : 20 questions par épreuve, un temps limité, une seule réponse juste."
                             font.family: Style.family
                             font.pixelSize: Style.fL
@@ -242,19 +253,27 @@ Page {
                             lineHeight: 1.15
                         }
                         Text {
+                            width: heroText.width
                             text: "Bonjour " + User.currentCandidateName + "."
                             font.family: Style.family
                             font.pixelSize: Style.fM
                             color: Style.slateTextMuted
+                            wrapMode: Text.WordWrap
                         }
                     }
 
                     ColumnLayout {
                         spacing: 14
                         Layout.alignment: Qt.AlignVCenter
-                        RowLayout {
-                            spacing: 18
+                        Layout.fillWidth: !hero.sideBySide
+                        GridLayout {
+                            id: plates
+                            Layout.fillWidth: true
+                            columns: hero.platesInRow ? 2 : 1
+                            columnSpacing: 18
+                            rowSpacing: 18
                             Plate {
+                                Layout.fillWidth: true
                                 heading: "réglementation"
                                 detail: "20 questions en " + (Prefs.extendedTime ? 45 : 15) + " minutes"
                                 note: page.lastNote(page.summary.reglementation)
@@ -262,6 +281,7 @@ Page {
                                 onClicked: page.startOfficial("reglementation")
                             }
                             Plate {
+                                Layout.fillWidth: true
                                 heading: "technique"
                                 detail: "20 questions en " + (Prefs.extendedTime ? 90 : 30) + " minutes"
                                 note: page.lastNote(page.summary.technique)
@@ -269,9 +289,14 @@ Page {
                                 onClicked: page.startOfficial("technique")
                             }
                         }
-                        RowLayout {
-                            spacing: 18
+                        // On one line beside the text (the block widens a little if needed), wrapped
+                        // onto two lines when the window is too narrow for both.
+                        Flow {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: Math.max(plates.implicitWidth, extended.implicitWidth + spacing + complete.implicitWidth)
+                            spacing: 14
                             CheckRow {
+                                id: extended
                                 text: "Temps aménagé (durée triplée)"
                                 labelColor: Style.slateText
                                 checked: Prefs.extendedTime
@@ -280,8 +305,8 @@ Page {
                                 ToolTip.delay: 600
                                 ToolTip.text: "Accordé à l'examen aux candidats ayant un taux d'incapacité d'au moins 70 %."
                             }
-                            Item { Layout.fillWidth: true }
                             ActionButton {
+                                id: complete
                                 variant: "dark"
                                 compact: true
                                 text: "Examen complet : 40 questions en " + (Prefs.extendedTime ? 135 : 45) + " minutes"
@@ -296,12 +321,14 @@ Page {
                 }
             }
 
-            // Below the hero: other ways to practise, and progress.
-            RowLayout {
+            // Below the hero: other ways to practise, and progress (stacked on a narrow window).
+            GridLayout {
                 Layout.fillWidth: true
                 Layout.margins: 40
                 Layout.maximumWidth: 1240
-                spacing: 32
+                columns: page.width - 80 >= 880 * Style.k ? 2 : 1
+                columnSpacing: 32
+                rowSpacing: 32
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -373,8 +400,8 @@ Page {
                             columnSpacing: 24
                             rowSpacing: 8
                             Layout.fillWidth: true
-                            Text { text: "Réglementation"; font.family: Style.family; font.pixelSize: Style.fS; font.bold: true; color: Style.text }
-                            Text { text: "Technique"; font.family: Style.family; font.pixelSize: Style.fS; font.bold: true; color: Style.text }
+                            Text { text: "Réglementation"; font.family: Style.family; font.pixelSize: Style.fS; font.bold: true; color: Style.text; Layout.fillWidth: true; elide: Text.ElideRight }
+                            Text { text: "Technique"; font.family: Style.family; font.pixelSize: Style.fS; font.bold: true; color: Style.text; Layout.fillWidth: true; elide: Text.ElideRight }
                             NoteBar { values: page.summary.reglementation || []; Layout.fillWidth: true; implicitHeight: 70 }
                             NoteBar { values: page.summary.technique || []; Layout.fillWidth: true; implicitHeight: 70 }
                         }
@@ -392,15 +419,16 @@ Page {
                             columnSpacing: 12
                             rowSpacing: 6
                             Layout.fillWidth: true
-                            Text { text: "Épreuves passées"; font.family: Style.family; font.pixelSize: Style.fM; color: Style.muted; Layout.fillWidth: true }
-                            Text { text: (page.summary.exams || 0) + (page.summary.passed ? "  (" + page.summary.passed + " réussies)" : ""); font.family: Style.family; font.pixelSize: Style.fM; font.bold: true; color: Style.text }
-                            Text { text: "Questions déjà vues"; font.family: Style.family; font.pixelSize: Style.fM; color: Style.muted; Layout.fillWidth: true }
+                            Text { text: "Épreuves passées"; font.family: Style.family; font.pixelSize: Style.fM; color: Style.muted; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                            Text { text: (page.summary.exams || 0) + (page.summary.passed ? "  (" + page.summary.passed + " réussies)" : ""); font.family: Style.family; font.pixelSize: Style.fM; font.bold: true; color: Style.text; Layout.alignment: Qt.AlignRight | Qt.AlignTop }
+                            Text { text: "Questions déjà vues"; font.family: Style.family; font.pixelSize: Style.fM; color: Style.muted; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                             Text {
                                 text: (page.summary.askedDistinct || 0) + " sur " + Bank.questionCount
                                 font.family: Style.family; font.pixelSize: Style.fM; font.bold: true; color: Style.text
+                                Layout.alignment: Qt.AlignRight | Qt.AlignTop
                             }
-                            Text { text: "Questions enregistrées"; font.family: Style.family; font.pixelSize: Style.fM; color: Style.muted; Layout.fillWidth: true }
-                            Text { text: User.savedCount; font.family: Style.family; font.pixelSize: Style.fM; font.bold: true; color: Style.text }
+                            Text { text: "Questions enregistrées"; font.family: Style.family; font.pixelSize: Style.fM; color: Style.muted; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                            Text { text: User.savedCount; font.family: Style.family; font.pixelSize: Style.fM; font.bold: true; color: Style.text; Layout.alignment: Qt.AlignRight | Qt.AlignTop }
                         }
                         Rectangle {
                             Layout.fillWidth: true

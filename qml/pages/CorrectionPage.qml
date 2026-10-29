@@ -31,10 +31,21 @@ Page {
             var q = Bank.question(a.num)
             if (!q.num)
                 continue
+            var options = q.options
+            var selection = a.chosen > 0 ? (1 << (a.chosen - 1)) : 0
+            var correct = a.answer - 1
+            var multiple = a.chosen === -1
+            // Since 4.0.2 the order shown and every ticked box are recorded: replay them as seen.
+            if (a.order && a.order.length === q.options.length) {
+                options = a.order.map(function (k) { return q.options[k] })
+                selection = a.mask
+                correct = a.order.indexOf(a.answer - 1)
+                multiple = false
+            }
             out.push({
                 index: i, position: i + 1, num: q.num, ref: q.ref, statement: q.text, image: q.image,
-                options: q.options, selection: a.chosen > 0 ? (1 << (a.chosen - 1)) : 0, multiple: a.chosen === -1,
-                correct: a.answer - 1,
+                textOnly: q.textOnly, options: options, selection: selection, multiple: multiple,
+                correct: correct,
                 status: a.chosen === 0 ? 3 : (a.chosen === a.answer ? 1 : 2), pinned: a.pinned,
                 themeName: q.themeName, comment: q.comment, course: q.course
             })
@@ -48,14 +59,21 @@ Page {
     }
 
     header: Rectangle {
-        implicitHeight: 84
+        implicitHeight: headerGrid.implicitHeight + 28
         color: Style.surface
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Style.line }
-        RowLayout {
-            anchors.fill: parent
+        // Filters beside the title on a wide window, under it on a narrow one.
+        GridLayout {
+            id: headerGrid
+            readonly property bool wide: page.width >= 1000 * Style.k
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 28
             anchors.rightMargin: 28
-            spacing: 18
+            columns: wide ? 3 : 2
+            columnSpacing: 18
+            rowSpacing: 10
             ActionButton {
                 variant: "ghost"
                 iconName: "chevron-left"
@@ -77,9 +95,13 @@ Page {
                     font.family: Style.family
                     font.pixelSize: Style.fS
                     color: Style.muted
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
                 }
             }
             SegmentedChoice {
+                Layout.columnSpan: headerGrid.wide ? 1 : 2
+                Layout.alignment: headerGrid.wide ? Qt.AlignVCenter : Qt.AlignLeft
                 value: page.filter
                 options: [
                     { value: "all", label: "Toutes (" + page.allRows.length + ")" },
@@ -92,64 +114,69 @@ Page {
         }
     }
 
-    ListView {
-        id: list
+    // Same presentation as the exam screen (Evalbox), with the correction of every question.
+    Rectangle {
         anchors.fill: parent
-        model: page.rows
-        spacing: 28
-        clip: true
-        topMargin: 32
-        bottomMargin: 48
-        cacheBuffer: 2000
-        boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
+        color: "#FFFFFF"
 
-        delegate: Item {
-            required property var modelData
-            width: list.width
-            implicitHeight: card.implicitHeight
-            Rectangle {
-                id: card
-                width: Math.min(Style.readable + 48, list.width - 64)
-                anchors.horizontalCenter: parent.horizontalCenter
-                implicitHeight: sheet.implicitHeight + 48
-                radius: Style.r2
-                color: Style.surface
-                border.color: Style.line
-                QuestionSheet {
-                    id: sheet
-                    x: 24
-                    y: 24
-                    width: parent.width - 48
-                    mode: "review"
-                    position: modelData.position
-                    total: page.allRows.length
-                    num: modelData.num
-                    ref: modelData.ref
-                    statement: modelData.statement
-                    image: modelData.image
-                    options: modelData.options
-                    selection: modelData.selection
-                    multiple: modelData.multiple === true
-                    correct: modelData.correct
+        ListView {
+            id: list
+            anchors.fill: parent
+            model: page.rows
+            spacing: Math.round(36 * Prefs.textScale)
+            clip: true
+            topMargin: 32
+            bottomMargin: 48
+            cacheBuffer: 2000
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
+
+            delegate: Item {
+                id: row
+                required property var modelData
+                required property int index
+                width: list.width
+                implicitHeight: block.implicitHeight
+                EvalQuestion {
+                    id: block
+                    width: Math.min(1140, list.width - 64)
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    family: App.systemFontFamily
+                    k: Prefs.textScale
+                    review: true
                     revealed: true
-                    pinned: modelData.pinned
-                    saved: User.savedCount >= 0 && User.isSaved(modelData.num)
-                    themeName: modelData.themeName
-                    comment: modelData.comment
-                    course: modelData.course
-                    onSaveRequested: User.toggleSaved(modelData.num)
+                    position: row.modelData.position
+                    total: page.allRows.length
+                    ref: row.modelData.ref
+                    showRef: true
+                    statement: row.modelData.statement
+                    textOnly: row.modelData.textOnly === true
+                    image: row.modelData.image
+                    options: row.modelData.options
+                    selection: row.modelData.selection
+                    multiple: row.modelData.multiple === true
+                    correct: row.modelData.correct
+                    pinned: row.modelData.pinned === true
+                    comment: row.modelData.comment
+                    course: row.modelData.course
+                    themeName: row.modelData.themeName
+                    saved: User.savedCount >= 0 && User.isSaved(row.modelData.num)
+                    onSaveRequested: User.toggleSaved(row.modelData.num)
+                    onNextRequested: {
+                        if (row.index + 1 < list.count)
+                            list.positionViewAtIndex(row.index + 1, ListView.Beginning)
+                    }
                 }
             }
-        }
 
-        Text {
-            anchors.centerIn: parent
-            visible: list.count === 0
-            text: "Aucune question dans ce filtre."
-            font.family: Style.family
-            font.pixelSize: Style.fL
-            color: Style.muted
+            Text {
+                anchors.centerIn: parent
+                visible: list.count === 0
+                text: "Aucune question dans ce filtre."
+                font.family: App.systemFontFamily
+                font.pixelSize: Math.round(18 * Prefs.textScale)
+                color: "#6C7B7C"
+            }
         }
     }
 }

@@ -1,0 +1,59 @@
+## Exam'1 {{VERSION}}
+
+Simulateur d'examen du certificat d'opérateur radioamateur (ANFR), pour Windows, macOS et Linux.
+
+![Écran d'accueil d'Exam'1](https://raw.githubusercontent.com/{{REPOSITORY}}/v{{VERSION}}/capture-accueil.png)
+
+### Nouveautés de la version {{VERSION}}
+
+{{CHANGES}}
+
+L'historique de toutes les versions est dans [CHANGELOG.md](https://github.com/{{REPOSITORY}}/blob/v{{VERSION}}/CHANGELOG.md).
+
+### Téléchargements
+
+| Fichier | Système | État |
+|---|---|---|
+| `Exam1-{{VERSION}}-setup.exe` | Windows 10 et 11, 64 bits | testé |
+| `Exam1-{{VERSION}}.dmg` | macOS 12 ou plus récent (Apple Silicon et Intel) | testé |
+| `exam1_{{VERSION}}_ubuntu24.04_amd64.deb` | Ubuntu 24.04 LTS, 64 bits | testé |
+| `exam1_{{VERSION}}_ubuntu26.04_amd64.deb` | Ubuntu 26.04 LTS, 64 bits | compilé, pas encore testé |
+| `exam1_{{VERSION}}_debian12_amd64.deb` | Debian 12, 64 bits | compilé, pas encore testé |
+| `exam1_{{VERSION}}_debian13_amd64.deb` | Debian 13, 64 bits | compilé, pas encore testé |
+
+{{BANK}}
+
+### Installation
+
+**Windows** : lancez `Exam1-{{VERSION}}-setup.exe`. L'installeur n'est pas signé numériquement, donc Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » : cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. L'installation est possible pour tous les utilisateurs ou pour vous seul.
+
+**macOS** : ouvrez `Exam1-{{VERSION}}.dmg` et glissez Exam'1 dans le dossier Applications. L'application n'est pas signée par Apple, donc macOS refuse de l'ouvrir au premier lancement. Allez dans *Réglages Système → Confidentialité et sécurité*, puis cliquez sur **Ouvrir quand même** en bas de la page. Sur macOS 14 et versions antérieures, un clic droit sur l'application puis **Ouvrir** suffit aussi.
+
+**Ubuntu et Debian** : prenez le paquet de votre distribution, puis :
+
+```bash
+sudo apt install ./exam1_{{VERSION}}_ubuntu24.04_amd64.deb
+```
+
+`apt` installe automatiquement les bibliothèques Qt 6 de la distribution. Exam'1 apparaît ensuite dans le menu des applications.
+
+### Vos données
+
+Les candidats, résultats et questions enregistrées se trouvent dans :
+- Windows : `%APPDATA%\Exam1\Exam1`
+- macOS : `~/Library/Application Support/Exam1/Exam1`
+- Linux : `~/.local/share/Exam1/Exam1`
+
+Ils sont conservés lors d'une mise à jour, et la désinstallation ne les supprime pas.
+
+### Remerciements
+
+- **Jean-Luc F6GPX** pour la base de questions, alimentée par les comptes rendus des candidats.
+- **René Bussy F5AXG** et **Arnaud Dussart**, avec **André F8DEM**, pour l'Exam'1 d'origine.
+- **Valentin F4HVV** pour la version web et l'hébergement de la base sur les serveurs du REF.
+- **Maxime F4IQN** pour la version Android.
+- **Le radio-club de la Haute Île F6KGL / F5KFF** pour le cours vers lequel renvoient les corrections.
+
+Cette édition ne reprend aucun code du programme WinDev d'origine et utilise la base de questions avec l'accord de ses auteurs.
+
+**Licence** : GNU GPL v3 ou ultérieure. Les questions et les images appartiennent à leurs auteurs.

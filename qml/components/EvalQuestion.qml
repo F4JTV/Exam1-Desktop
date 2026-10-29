@@ -16,6 +16,8 @@ Item {
     property int total: 1
     property url image
     property string statement: ""
+    property string ref: ""          // bank number, e.g. "20003"
+    property bool showRef: false
     property bool textOnly: false
     property var options: []
     property int selection: 0
@@ -25,18 +27,24 @@ Item {
     property string comment: ""
     property string course: ""
     property bool training: false
+    // Correction of a finished session (review): answers locked, correction always shown.
+    property bool review: false
+    property bool multiple: false        // several boxes ticked, which ones not recorded (old results)
+    property bool saved: false
+    property string themeName: ""
     property string family: ""
     property real k: 1.0
 
     signal toggle(int option)
     signal pinRequested()
+    signal saveRequested()
     signal nextRequested()
     signal revealRequested()
 
     readonly property bool answered: selection !== 0
     readonly property bool hasImage: String(image).length > 0
     // As on the ANFR exam: a picture only for questions with a diagram, a formula or a drawing.
-    // textOnly is computed when the bank is installed (see src/statement.cpp).
+    // textOnly comes from F6GPX's markers (see src/statement.h).
     readonly property bool showImage: hasImage && (Prefs.statementMode === "image" || !textOnly)
     readonly property bool showText: !showImage && statement.length > 0
     readonly property int bits: {
@@ -73,11 +81,31 @@ Item {
                 font.pixelSize: Math.round(16 * q.k)
                 color: q.answered ? "#2B7C57" : "#6C7B7C"
             }
+            // Bank number, to note the question and find it later in "Base de questions".
+            TextEdit {
+                id: refLabel
+                visible: q.showRef && q.ref.length > 0
+                anchors.left: label.right
+                anchors.leftMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                text: "n° " + q.ref
+                readOnly: true
+                selectByMouse: true
+                font.family: q.family
+                font.pixelSize: Math.round(14 * q.k)
+                color: "#6C7B7C"
+                selectionColor: "#CFE2FF"
+                selectedTextColor: "#212529"
+                Accessible.name: "Question numéro " + q.ref
+            }
             AbstractButton {
                 id: pinButton
-                anchors.left: label.right
+                anchors.left: refLabel.visible ? refLabel.right : label.right
                 anchors.leftMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
+                // In review, only shows that the question had been pinned.
+                visible: !q.review || q.pinned
+                enabled: !q.review
                 width: Math.round(30 * q.k)
                 height: width
                 hoverEnabled: true
@@ -146,6 +174,8 @@ Item {
             visible: q.showText
             Layout.fillWidth: true
             text: q.statement
+            // Plain text: keeps the line breaks of multi-line statements ("1) ... 2) ...").
+            textFormat: Text.PlainText
             font.family: q.family
             font.pixelSize: Math.round(16 * q.k)
             color: "#212529"
@@ -167,7 +197,7 @@ Item {
                     k: q.k
                     label: modelData
                     ticked: (q.selection >> index) & 1
-                    locked: q.revealed && q.training
+                    locked: q.revealed && (q.training || q.review)
                     feedback: !q.revealed ? 0
                               : index === q.correct ? (ticked ? 1 : 3)
                               : ticked ? 2 : 0
@@ -176,9 +206,10 @@ Item {
             }
         }
 
-        // Correction shown during training with immediate correction (not part of the real exam).
+        // Correction shown during training with immediate correction (not part of the real exam),
+        // and in the correction of a finished session.
         Rectangle {
-            visible: q.training && q.revealed
+            visible: (q.training || q.review) && q.revealed
             Layout.fillWidth: true
             implicitHeight: corr.implicitHeight + 24
             radius: 4
@@ -198,8 +229,9 @@ Item {
                     font.pixelSize: Math.round(16 * q.k)
                     font.bold: true
                     color: "#212529"
-                    text: q.selection === 0 ? "Sans réponse. La bonne réponse est : " + q.options[q.correct]
-                          : q.bits === 1 && ((q.selection >> q.correct) & 1) ? "Bonne réponse."
+                    text: q.multiple || q.bits > 1 ? "Plusieurs cases cochées : réponse comptée fausse. La bonne réponse est : " + q.options[q.correct]
+                          : q.selection === 0 ? "Sans réponse. La bonne réponse est : " + q.options[q.correct]
+                          : (q.selection >> q.correct) & 1 ? "Bonne réponse."
                           : "Réponse fausse. La bonne réponse est : " + q.options[q.correct]
                 }
                 Text {
@@ -233,10 +265,54 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             spacing: 6
-            Item { Layout.fillWidth: true }
+            Text {
+                visible: q.review && q.themeName.length > 0
+                Layout.fillWidth: true
+                elide: Text.ElideRight
+                text: q.themeName
+                font.family: q.family
+                font.pixelSize: Math.round(13 * q.k)
+                color: "#6C7B7C"
+            }
+            Item { Layout.fillWidth: true; visible: !q.review || q.themeName.length === 0 }
+            AbstractButton {
+                id: saveBtn
+                visible: q.review
+                implicitHeight: Math.round(31 * q.k)
+                implicitWidth: saveRow.implicitWidth + 24
+                hoverEnabled: true
+                onClicked: q.saveRequested()
+                Accessible.name: q.saved ? "Retirer des questions enregistrées" : "Enregistrer pour réviser"
+                background: Rectangle {
+                    radius: 4
+                    color: saveBtn.hovered ? "#6C757D" : (q.saved ? "#E7F1FF" : "#FFFFFF")
+                    border.color: q.saved ? "#0A58CA" : "#6C757D"
+                }
+                contentItem: Item {
+                    implicitWidth: saveRow.implicitWidth
+                    Row {
+                        id: saveRow
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Icon {
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: q.saved ? "bookmark-filled" : "bookmark"
+                            color: saveBtn.hovered ? "#FFFFFF" : (q.saved ? "#0A58CA" : "#6C757D")
+                            size: Math.round(14 * q.k)
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: q.saved ? "Enregistrée" : "Enregistrer pour réviser"
+                            font.family: q.family
+                            font.pixelSize: Math.round(14 * q.k)
+                            color: saveBtn.hovered ? "#FFFFFF" : (q.saved ? "#0A58CA" : "#6C757D")
+                        }
+                    }
+                }
+            }
             AbstractButton {
                 id: showBtn
-                visible: q.training && !q.revealed
+                visible: q.training && !q.review && !q.revealed
                 implicitHeight: Math.round(31 * q.k)
                 implicitWidth: showText.implicitWidth + 24
                 hoverEnabled: true

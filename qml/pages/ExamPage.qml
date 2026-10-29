@@ -314,6 +314,7 @@ Page {
                     id: block
                     required property int index
                     required position
+                    required ref
                     required statement
                     required textOnly
                     required image
@@ -329,6 +330,8 @@ Page {
                     k: page.k
                     total: Exam.count
                     training: Exam.instantCorrection || !page.official
+                    showRef: Prefs.questionNumbers === "always"
+                             || (Prefs.questionNumbers === "training" && !page.official)
                     onToggle: (option) => { page.current = block.index; Exam.select(block.index, option) }
                     onPinRequested: Exam.togglePin(block.index)
                     onNextRequested: page.jumpTo(block.index + 1)

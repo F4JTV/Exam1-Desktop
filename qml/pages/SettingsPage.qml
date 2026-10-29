@@ -80,7 +80,32 @@ Page {
                     font.family: Style.family
                     font.pixelSize: Style.fS
                     color: Style.muted
-                    text: "Comme à l'examen, seules les questions avec un schéma, une formule ou un dessin affichent une image ; les autres sont présentées en texte. En cas de doute, l'image est conservée."
+                    text: "Comme à l'examen, seules les questions avec un schéma, une formule ou un dessin affichent une image ; les autres sont présentées en texte. Ces questions sont repérées par Jean-Luc F6GPX dans son fichier de la base."
+                }
+                Text {
+                    text: "Numéro des questions"
+                    font.family: Style.family
+                    font.pixelSize: Style.fM
+                    font.bold: true
+                    color: Style.text
+                    Layout.topMargin: 8
+                }
+                SegmentedChoice {
+                    value: Prefs.questionNumbers
+                    options: [
+                        { value: "training", label: "À l'entraînement" },
+                        { value: "always", label: "Toujours" },
+                        { value: "never", label: "Jamais" }
+                    ]
+                    onActivated: (v) => Prefs.questionNumbers = v
+                }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.family: Style.family
+                    font.pixelSize: Style.fS
+                    color: Style.muted
+                    text: "Le numéro de la question dans la base (par exemple n° 20003) s'affiche à côté de « Question 11 / 20 ». Notez-le pour retravailler la question plus tard : il se recherche dans « Base de questions ». En examen blanc, il n'apparaît qu'avec « Toujours » : l'examen ANFR ne l'affiche pas."
                 }
             }
 

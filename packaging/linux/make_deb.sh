@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Creates the Debian package for Ubuntu 24.04: build/exam1_<version>_<arch>.deb
+# Creates the Debian package for the distribution it runs on (Ubuntu 24.04 / 26.04, Debian 12 / 13):
+#   build/exam1_<version>_<distribution>_<arch>.deb, e.g. exam1_4.0.2_ubuntu24.04_amd64.deb
+# Build it on the distribution it is meant for: the dependencies are those of its Qt packages.
 # The question bank in packaging/data (see packaging/fetch_bank.sh) is included when present.
 # Usage: packaging/linux/make_deb.sh [--fetch-bank]
 set -euo pipefail
@@ -11,7 +13,10 @@ fi
 
 VERSION="$(sed -n 's/^ *VERSION \([0-9.]*\)$/\1/p' "$ROOT/CMakeLists.txt" | head -1)"
 ARCH="$(dpkg --print-architecture)"
-STAGE="$ROOT/build/deb/exam1_${VERSION}_${ARCH}"
+# Distribution tag in the file name ("ubuntu24.04", "debian12"...): one package per distribution.
+# shellcheck source=/dev/null
+DISTRO="$(. /etc/os-release && echo "${ID}${VERSION_ID}")"
+STAGE="$ROOT/build/deb/exam1_${VERSION}_${DISTRO}_${ARCH}"
 
 [[ -x "$ROOT/build/exam1" ]] || bash "$ROOT/packaging/linux/build_linux.sh"
 cmake --build "$ROOT/build" --parallel
@@ -21,7 +26,9 @@ DESTDIR="$STAGE" cmake --install "$ROOT/build" --prefix /usr
 strip --strip-unneeded "$STAGE/usr/bin/exam1" || true
 
 if [[ -f "$ROOT/packaging/data/questions.json" ]]; then
-    echo "Bundling question bank: $(python3 -c "import json;d=json.load(open('$ROOT/packaging/data/questions.json',encoding='utf-8'));print(d.get('version'), len(d['questions']), 'questions')")"
+    BANK_JSON="$ROOT/packaging/data/questions.json"
+    echo "Bundling question bank: version $(grep -o '"version":"[^"]*"' "$BANK_JSON" | head -1 | cut -d'"' -f4)," \
+         "$(grep -o '"question":' "$BANK_JSON" | wc -l) questions"
 else
     echo "WARNING: no question bank in packaging/data. The application will download it on first launch."
     echo "         Run packaging/fetch_bank.sh (or this script with --fetch-bank) to bundle it."
@@ -73,7 +80,7 @@ POSTINST
 chmod 755 "$STAGE/DEBIAN/postinst"
 
 find "$STAGE" -type d -exec chmod 755 {} +
-OUT="$ROOT/build/exam1_${VERSION}_${ARCH}.deb"
+OUT="$ROOT/build/exam1_${VERSION}_${DISTRO}_${ARCH}.deb"
 dpkg-deb --build --root-owner-group "$STAGE" "$OUT"
 echo
 echo "Package: $OUT"

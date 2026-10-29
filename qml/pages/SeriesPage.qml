@@ -49,7 +49,8 @@ Page {
                 subtitle: "Chaque série propose les mêmes questions à tous les candidats : pratique pour corriger ensemble en radio-club."
             }
 
-            RowLayout {
+            // Wraps onto several lines on a narrow window.
+            Flow {
                 Layout.fillWidth: true
                 spacing: 24
                 SegmentedChoice {
@@ -61,7 +62,6 @@ Page {
                     ]
                     onActivated: (v) => page.type = v
                 }
-                Item { Layout.fillWidth: true }
                 CheckRow {
                     text: "Chronométrer"
                     checked: page.timed
@@ -88,7 +88,7 @@ Page {
             GridLayout {
                 Layout.fillWidth: true
                 visible: page.series.length > 0
-                columns: Math.max(3, Math.floor(width / 170))
+                columns: Math.max(1, Math.floor((col.width + 12) / (Math.round(170 * Style.k) + 12)))
                 columnSpacing: 12
                 rowSpacing: 12
                 Repeater {

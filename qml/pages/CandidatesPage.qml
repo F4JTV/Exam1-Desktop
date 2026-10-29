@@ -75,15 +75,24 @@ Page {
                             required property var modelData
                             required property int index
                             readonly property bool isCurrent: modelData.id === User.currentCandidate
+                            // Narrow window: the actions go under the name.
+                            readonly property bool narrow: width < 600 * Style.k
                             Layout.fillWidth: true
-                            implicitHeight: 68
+                            implicitHeight: Math.max(68, candRow.implicitHeight + 24)
                             color: isCurrent ? Style.blueSoft : (index % 2 ? Style.surfaceAlt : Style.surface)
-                            RowLayout {
-                                anchors.fill: parent
+                            GridLayout {
+                                id: candRow
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
                                 anchors.leftMargin: 20
                                 anchors.rightMargin: 12
-                                spacing: 14
+                                columns: narrow ? 2 : 3
+                                columnSpacing: 14
+                                rowSpacing: 6
                                 Rectangle {
+                                    Layout.row: 0
+                                    Layout.column: 0
                                     width: 36
                                     height: 36
                                     radius: 18
@@ -98,6 +107,8 @@ Page {
                                     }
                                 }
                                 ColumnLayout {
+                                    Layout.row: 0
+                                    Layout.column: 1
                                     spacing: 2
                                     Layout.fillWidth: true
                                     Text {
@@ -106,51 +117,60 @@ Page {
                                         font.pixelSize: Style.fL
                                         font.bold: true
                                         color: Style.text
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
                                     }
                                     Text {
                                         text: modelData.exams + " épreuve" + (modelData.exams > 1 ? "s" : "") + ", dont " + (modelData.passed || 0) + " réussie" + ((modelData.passed || 0) > 1 ? "s" : "")
                                         font.family: Style.family
                                         font.pixelSize: Style.fS
                                         color: Style.muted
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
                                     }
                                 }
-                                Text {
-                                    visible: isCurrent
-                                    text: "Candidat actuel"
-                                    font.family: Style.family
-                                    font.pixelSize: Style.fS
-                                    font.bold: true
-                                    color: Style.blue
-                                }
-                                ActionButton {
-                                    visible: !isCurrent
-                                    variant: "secondary"
-                                    compact: true
-                                    text: "Choisir"
-                                    onClicked: User.currentCandidate = modelData.id
-                                }
-                                ActionButton {
-                                    variant: "ghost"
-                                    compact: true
-                                    iconName: "edit"
-                                    text: "Renommer"
-                                    onClicked: {
-                                        page.renameId = modelData.id
-                                        renameField.text = modelData.name
-                                        renameDialog.open()
+                                RowLayout {
+                                    Layout.row: narrow ? 1 : 0
+                                    Layout.column: narrow ? 1 : 2
+                                    spacing: 14
+                                    Text {
+                                        visible: isCurrent
+                                        text: "Candidat actuel"
+                                        font.family: Style.family
+                                        font.pixelSize: Style.fS
+                                        font.bold: true
+                                        color: Style.blue
                                     }
-                                }
-                                ActionButton {
-                                    variant: "ghost"
-                                    compact: true
-                                    iconName: "trash"
-                                    tint: Style.muted
-                                    text: ""
-                                    Accessible.name: "Supprimer " + modelData.name
-                                    onClicked: {
-                                        page.deleteId = modelData.id
-                                        page.deleteName = modelData.name
-                                        deleteDialog.open()
+                                    ActionButton {
+                                        visible: !isCurrent
+                                        variant: "secondary"
+                                        compact: true
+                                        text: "Choisir"
+                                        onClicked: User.currentCandidate = modelData.id
+                                    }
+                                    ActionButton {
+                                        variant: "ghost"
+                                        compact: true
+                                        iconName: "edit"
+                                        text: "Renommer"
+                                        onClicked: {
+                                            page.renameId = modelData.id
+                                            renameField.text = modelData.name
+                                            renameDialog.open()
+                                        }
+                                    }
+                                    ActionButton {
+                                        variant: "ghost"
+                                        compact: true
+                                        iconName: "trash"
+                                        tint: Style.muted
+                                        text: ""
+                                        Accessible.name: "Supprimer " + modelData.name
+                                        onClicked: {
+                                            page.deleteId = modelData.id
+                                            page.deleteName = modelData.name
+                                            deleteDialog.open()
+                                        }
                                     }
                                 }
                             }

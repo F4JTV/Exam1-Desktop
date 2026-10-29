@@ -132,6 +132,18 @@ ApplicationWindow {
             return resumeTourStep(step, 2)
         if (tourName === "import")
             return importTourStep(step)
+        if (tourName === "history") {
+            // Correction of the most recent past result, opened from "Résultats".
+            var past = User.results("", 0)
+            switch (step) {
+            case 0: go("history"); return "h-history"
+            case 1: open("CorrectionPage", { resultId: past.length ? past[0].id : 0 }); return "h-correction"
+            case 2: open("CorrectionPage", { resultId: past.length ? past[past.length - 1].id : 0, filter: "wrong" }); return "h-oldest-wrong"
+            case 3: open("CorrectionPage", { resultId: past.length ? past[past.length - 1].id : 0, startAt: 5 }); return "h-oldest-q6"
+            case 4: open("CorrectionPage", { resultId: past.length ? past[past.length - 1].id : 0, filter: "pinned" }); return "h-oldest-pinned"
+            default: return ""
+            }
+        }
         if (tourName === "ui") {
             switch (step) {
             case 0: stack.currentItem.startOfficial("technique"); return "ui-exam"

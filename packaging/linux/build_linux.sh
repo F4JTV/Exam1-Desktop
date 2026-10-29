@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Builds Exam'1 on Ubuntu 24.04 (Qt 6.4 from the distribution).
+# Builds Exam'1 with the Qt 6 of the distribution: Ubuntu 24.04 / 26.04, Debian 12 / 13.
 # Usage: packaging/linux/build_linux.sh [--install-deps] [--debug]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_TYPE=Release
+# sudo is not needed (nor installed) when running as root, e.g. in a container.
+SUDO=""
+if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 for arg in "$@"; do
     case "$arg" in
         --install-deps)
-            sudo apt-get update
-            sudo apt-get install -y build-essential cmake ninja-build pkg-config \
+            export DEBIAN_FRONTEND=noninteractive
+            $SUDO apt-get update
+            $SUDO apt-get install -y build-essential cmake ninja-build pkg-config \
                 qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-tools-dev libgl1-mesa-dev \
                 qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
                 qml6-module-qtquick-templates qml6-module-qtquick-window qml6-module-qtquick-dialogs \

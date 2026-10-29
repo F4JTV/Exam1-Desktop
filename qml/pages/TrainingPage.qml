@@ -65,7 +65,8 @@ Page {
             for (var i = 0; i < themes.length; ++i) n += themes[i].count
             return n
         }
-        RowLayout {
+        Flow {
+            Layout.fillWidth: true
             spacing: 8
             ActionButton { variant: "ghost"; compact: true; text: "Tout cocher"; leftPadding: 0; onClicked: page.setAll(tc.themes, true) }
             ActionButton { variant: "ghost"; compact: true; text: "Tout décocher"; onClicked: page.setAll(tc.themes, false) }
@@ -102,17 +103,27 @@ Page {
                 subtitle: "Les questions sont réparties équitablement entre les thèmes cochés, puis présentées dans un ordre aléatoire."
             }
 
-            RowLayout {
+            // Three columns on a wide window; on a medium one the two theme lists are stacked
+            // beside the settings; on a narrow one everything is stacked.
+            GridLayout {
+                id: grid
                 Layout.fillWidth: true
-                spacing: 24
+                readonly property int mode: col.width >= 940 * Style.k ? 3 : (col.width >= 640 * Style.k ? 2 : 1)
+                columns: mode
+                columnSpacing: 24
+                rowSpacing: 24
 
                 ThemeColumn {
+                    Layout.row: 0
+                    Layout.column: 0
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignTop
                     heading: "Réglementation"
                     themes: Bank.regulationThemes
                 }
                 ThemeColumn {
+                    Layout.row: grid.mode === 3 ? 0 : 1
+                    Layout.column: grid.mode === 3 ? 1 : 0
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignTop
                     heading: "Technique"
@@ -120,7 +131,11 @@ Page {
                 }
 
                 Section {
-                    Layout.preferredWidth: 330
+                    Layout.row: grid.mode === 1 ? 2 : 0
+                    Layout.column: grid.mode === 3 ? 2 : (grid.mode === 2 ? 1 : 0)
+                    Layout.rowSpan: grid.mode === 2 ? 2 : 1
+                    Layout.fillWidth: grid.mode === 1
+                    Layout.preferredWidth: grid.mode === 1 ? -1 : Math.round(330 * Style.k)
                     Layout.alignment: Qt.AlignTop
                     title: "Réglages"
                     Text { text: "Nombre de questions"; font.family: Style.family; font.pixelSize: Style.fM; font.bold: true; color: Style.text }

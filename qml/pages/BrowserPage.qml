@@ -40,6 +40,7 @@ Page {
                     font.bold: true
                     color: Style.text
                     Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
                 }
                 Text {
                     text: Browser.count + " question" + (Browser.count > 1 ? "s" : "") + " sur " + Bank.questionCount
@@ -48,13 +49,14 @@ Page {
                     color: Style.muted
                 }
             }
-            RowLayout {
+            // Search field, theme and filters: on one line when they fit, wrapped otherwise.
+            Flow {
+                id: filters
                 Layout.fillWidth: true
                 spacing: 14
                 TextField2 {
                     id: searchField
-                    Layout.fillWidth: true
-                    Layout.maximumWidth: 460
+                    width: Math.min(filters.width, Math.round(460 * Style.k))
                     placeholderText: "Rechercher un mot, une valeur ou un numéro (ex. 20003)"
                     text: Browser.search
                     onTextChanged: searchTimer.restart()
@@ -66,7 +68,7 @@ Page {
                 }
                 ComboBox {
                     id: themeBox
-                    Layout.preferredWidth: 360
+                    width: Math.min(filters.width, Math.round(360 * Style.k))
                     model: page.themeChoices
                     textRole: "text"
                     valueRole: "value"

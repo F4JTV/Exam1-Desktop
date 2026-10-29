@@ -2,7 +2,8 @@
 ; Normally run by build_windows.bat, which passes AppVersion, SourceDir and OutputDir.
 
 #ifndef AppVersion
-  #define AppVersion "4.0.1"
+  ; Normally passed by build_windows.bat, from CMakeLists.txt
+  #define AppVersion "dev"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\..\dist\Exam1"

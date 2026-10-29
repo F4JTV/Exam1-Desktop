@@ -30,12 +30,21 @@ Page {
         radius: Style.r2
         color: Style.surface
         border.color: Style.line
-        RowLayout {
+        // Narrow window: the count and the button go under the text.
+        readonly property bool narrow: width < 640 * Style.k
+        GridLayout {
             id: row
-            anchors.fill: parent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
             anchors.margins: 20
-            spacing: 18
+            columns: src.narrow ? 2 : 3
+            columnSpacing: 18
+            rowSpacing: 12
             Rectangle {
+                Layout.row: 0
+                Layout.column: 0
+                Layout.alignment: Qt.AlignTop
                 width: 48
                 height: 48
                 radius: 24
@@ -43,22 +52,29 @@ Page {
                 Icon { anchors.centerIn: parent; name: src.iconName; color: Style.blue; size: 22 }
             }
             ColumnLayout {
+                Layout.row: 0
+                Layout.column: 1
                 Layout.fillWidth: true
                 spacing: 4
-                Text { text: src.heading; font.family: Style.family; font.pixelSize: Style.fL; font.bold: true; color: Style.text }
+                Text { text: src.heading; font.family: Style.family; font.pixelSize: Style.fL; font.bold: true; color: Style.text; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                 Text { text: src.detail; font.family: Style.family; font.pixelSize: Style.fS; color: Style.muted; wrapMode: Text.WordWrap; Layout.fillWidth: true }
             }
-            Text {
-                text: src.available + (src.available > 1 ? " questions" : " question")
-                font.family: Style.family
-                font.pixelSize: Style.fM
-                font.bold: true
-                color: src.available > 0 ? Style.text : Style.muted
-            }
-            ActionButton {
-                text: "Réviser"
-                enabled: src.available > 0
-                onClicked: page.start(src.key)
+            RowLayout {
+                Layout.row: src.narrow ? 1 : 0
+                Layout.column: src.narrow ? 1 : 2
+                spacing: 18
+                Text {
+                    text: src.available + (src.available > 1 ? " questions" : " question")
+                    font.family: Style.family
+                    font.pixelSize: Style.fM
+                    font.bold: true
+                    color: src.available > 0 ? Style.text : Style.muted
+                }
+                ActionButton {
+                    text: "Réviser"
+                    enabled: src.available > 0
+                    onClicked: page.start(src.key)
+                }
             }
         }
     }
@@ -82,10 +98,12 @@ Page {
                 subtitle: "Retravaillez les questions qui vous ont posé problème, jusqu'à ce qu'elles n'en posent plus."
             }
 
-            RowLayout {
+            Flow {
+                Layout.fillWidth: true
                 spacing: 24
-                Text { text: "Questions par session"; font.family: Style.family; font.pixelSize: Style.fM; color: Style.text }
+                Text { text: "Questions par session"; font.family: Style.family; font.pixelSize: Style.fM; color: Style.text; height: Math.max(implicitHeight, sessionCount.implicitHeight); verticalAlignment: Text.AlignVCenter }
                 Spinner {
+                    id: sessionCount
                     value: page.count
                     from: 0
                     to: 200
@@ -122,8 +140,9 @@ Page {
                 available: page.rev >= 0 ? Exam.reviewAvailable("unseen") : 0
             }
 
-            RowLayout {
+            Flow {
                 Layout.topMargin: 8
+                Layout.fillWidth: true
                 spacing: 12
                 ActionButton {
                     variant: "secondary"

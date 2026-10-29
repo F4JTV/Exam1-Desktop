@@ -8,12 +8,15 @@ Item {
     property var values: []     // [{ note20, passed }], oldest first
     property int maxBars: 10
     implicitHeight: 92
-    implicitWidth: 260
+    implicitWidth: 160
 
     readonly property var shown: values.length > maxBars ? values.slice(values.length - maxBars) : values
 
     Text {
         anchors.centerIn: parent
+        width: parent.width
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
         visible: nb.shown.length === 0
         text: "Pas encore de note"
         font.family: Style.family

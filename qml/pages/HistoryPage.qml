@@ -48,9 +48,12 @@ Page {
                 subtitle: User.currentCandidateName + " : " + page.all.length + " épreuve" + (page.all.length > 1 ? "s" : "") + " et entraînement" + (page.all.length > 1 ? "s" : "") + " enregistré" + (page.all.length > 1 ? "s" : "") + "."
             }
 
-            RowLayout {
+            // Side by side, or one under the other on a narrow window.
+            GridLayout {
                 Layout.fillWidth: true
-                spacing: 24
+                columns: col.width >= 640 * Style.k ? 2 : 1
+                columnSpacing: 24
+                rowSpacing: 24
                 Repeater {
                     model: [
                         { cat: "reglementation", label: "Épreuves blanches de réglementation" },
@@ -101,12 +104,17 @@ Page {
                     Repeater {
                         model: page.rows
                         delegate: Rectangle {
+                            id: rowItem
                             required property var modelData
                             required property int index
+                            // Narrow window: date, figures and duration go under the title.
+                            readonly property bool compact: table.width < 1100 * Style.k
+                            readonly property string figures: modelData.correct + " juste" + (modelData.correct > 1 ? "s" : "") + ", " + modelData.wrong + " fausse" + (modelData.wrong > 1 ? "s" : "") + ", " + modelData.blank + " vide" + (modelData.blank > 1 ? "s" : "")
                             Layout.fillWidth: true
-                            implicitHeight: 64
+                            implicitHeight: Math.max(64, rowLine.implicitHeight + 20)
                             color: index % 2 ? Style.surfaceAlt : Style.surface
                             RowLayout {
+                                id: rowLine
                                 anchors.fill: parent
                                 anchors.leftMargin: 20
                                 anchors.rightMargin: 12
@@ -118,34 +126,51 @@ Page {
                                     color: modelData.passed ? Style.green : Style.red
                                 }
                                 Text {
+                                    visible: !rowItem.compact
                                     text: modelData.dateLabel
                                     font.family: Style.family
                                     font.pixelSize: Style.fS
                                     color: Style.muted
-                                    Layout.preferredWidth: 130
+                                    Layout.preferredWidth: Math.round(130 * Style.k)
                                 }
-                                Text {
-                                    text: modelData.title
-                                    font.family: Style.family
-                                    font.pixelSize: Style.fM
-                                    font.bold: true
-                                    color: Style.text
-                                    elide: Text.ElideRight
+                                ColumnLayout {
                                     Layout.fillWidth: true
+                                    spacing: 2
+                                    Text {
+                                        text: modelData.title
+                                        font.family: Style.family
+                                        font.pixelSize: Style.fM
+                                        font.bold: true
+                                        color: Style.text
+                                        elide: rowItem.compact ? Text.ElideNone : Text.ElideRight
+                                        wrapMode: rowItem.compact ? Text.WordWrap : Text.NoWrap
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        visible: rowItem.compact
+                                        text: modelData.dateLabel + "  ·  " + rowItem.figures + "  ·  " + App.formatDuration(modelData.secondsUsed)
+                                        font.family: Style.family
+                                        font.pixelSize: Style.fS
+                                        color: Style.muted
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
                                 }
                                 Text {
-                                    text: modelData.correct + " juste" + (modelData.correct > 1 ? "s" : "") + ", " + modelData.wrong + " fausse" + (modelData.wrong > 1 ? "s" : "") + ", " + modelData.blank + " vide" + (modelData.blank > 1 ? "s" : "")
+                                    visible: !rowItem.compact
+                                    text: rowItem.figures
                                     font.family: Style.family
                                     font.pixelSize: Style.fS
                                     color: Style.muted
-                                    Layout.preferredWidth: 230
+                                    Layout.preferredWidth: Math.round(230 * Style.k)
                                 }
                                 Text {
+                                    visible: !rowItem.compact
                                     text: App.formatDuration(modelData.secondsUsed)
                                     font.family: Style.family
                                     font.pixelSize: Style.fS
                                     color: Style.muted
-                                    Layout.preferredWidth: 56
+                                    Layout.preferredWidth: Math.round(56 * Style.k)
                                 }
                                 Text {
                                     text: page.fmt(modelData.note20) + "/20"
@@ -154,7 +179,7 @@ Page {
                                     font.bold: true
                                     color: modelData.passed ? Style.green : Style.red
                                     horizontalAlignment: Text.AlignRight
-                                    Layout.preferredWidth: 72
+                                    Layout.preferredWidth: Math.round(72 * Style.k)
                                 }
                                 ActionButton {
                                     variant: "ghost"

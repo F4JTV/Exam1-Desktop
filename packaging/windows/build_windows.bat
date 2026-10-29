@@ -45,7 +45,10 @@ if errorlevel 1 (
 
 rem --- Version (from CMakeLists.txt) ---------------------------------------------
 for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "(Select-String -Path 'CMakeLists.txt' -Pattern '^\s*VERSION ([0-9.]+)').Matches[0].Groups[1].Value"`) do set "VERSION=%%V"
-if "%VERSION%"=="" set "VERSION=4.0.0"
+if "%VERSION%"=="" (
+    echo [ERREUR] Version introuvable dans CMakeLists.txt.
+    goto fail
+)
 echo Version : %VERSION%
 
 rem --- Question bank -----------------------------------------------------------------
