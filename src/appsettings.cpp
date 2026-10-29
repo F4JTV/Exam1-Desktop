@@ -75,3 +75,10 @@ QString AppSettings::statementMode() const
     return v == QLatin1String("image") ? v : QStringLiteral("auto");
 }
 void AppSettings::setStatementMode(const QString &v) { put(QStringLiteral("ui/statementMode"), v); }
+
+QString AppSettings::questionNumbers() const
+{
+    const QString v = m_s.value(QStringLiteral("ui/questionNumbers"), QStringLiteral("training")).toString();
+    return v == QLatin1String("always") || v == QLatin1String("never") ? v : QStringLiteral("training");
+}
+void AppSettings::setQuestionNumbers(const QString &v) { put(QStringLiteral("ui/questionNumbers"), v); }

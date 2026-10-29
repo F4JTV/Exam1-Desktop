@@ -22,7 +22,7 @@
 #include <functional>
 
 #ifndef EXAM1_VERSION
-#define EXAM1_VERSION "4.0.1"
+#define EXAM1_VERSION "dev" // normally set by CMake from project(VERSION)
 #endif
 
 namespace {
@@ -121,6 +121,12 @@ int main(int argc, char *argv[])
 
     const QString captureDir = qEnvironmentVariable("EXAM1_CAPTURE_DIR");
     if (!captureDir.isEmpty()) {
+        // EXAM1_WINDOW_SIZE=1000x660: capture at another window size (layout checks).
+        const QStringList size = qEnvironmentVariable("EXAM1_WINDOW_SIZE").split(QLatin1Char('x'));
+        if (size.size() == 2) {
+            if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()))
+                window->resize(size.at(0).toInt(), size.at(1).toInt());
+        }
         engine.rootObjects().constFirst()->setProperty("tourName", qEnvironmentVariable("EXAM1_TOUR", QStringLiteral("main")));
         runCaptureTour(engine, captureDir);
     }

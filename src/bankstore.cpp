@@ -129,12 +129,15 @@ bool BankStore::load(const QString &dir)
                 }
             }
             bool currentFormat = false;
+            bool fileHasMarkers = false;
             if (ok && q.exec(QStringLiteral("SELECT key, value FROM meta"))) {
                 while (q.next()) {
                     const QString k = q.value(0).toString();
                     // Banks built before the answer numbering fix (no "answer_base") must be rebuilt.
                     if (k == QLatin1String("answer_base"))
                         currentFormat = true;
+                    if (k == QLatin1String("markers"))
+                        fileHasMarkers = q.value(1).toString() == QLatin1String("file");
                     if (k == QLatin1String("version"))
                         version = q.value(1).toString();
                     else if (k == QLatin1String("source"))
@@ -144,6 +147,25 @@ bool BankStore::load(const QString &dir)
                 }
             }
             ok = ok && currentFormat;
+            if (ok) {
+                // F6GPX's bundled list, applied again at load time: banks installed by an earlier
+                // version, or before the list was updated, get it without a rebuild. When the
+                // questions file carried the markers itself, the decision stored at import stands.
+                const Statement::Marks &marks = Statement::Marks::bundled();
+                for (Question &qu : questions) {
+                    const QString full = marks.repair(qu.num, qu.text);
+                    if (full != qu.text) {
+                        qu.text = full;
+                        qu.displayText = Statement::displayText(full);
+                    }
+                    if (qu.image.isEmpty()) {
+                        qu.textOnly = true;
+                    } else if (!fileHasMarkers) {
+                        if (const std::optional<bool> marked = Statement::textOnlyFromMarks(qu.num, qu.text, false, marks))
+                            qu.textOnly = *marked;
+                    }
+                }
+            }
             db.close();
         }
         db = QSqlDatabase();

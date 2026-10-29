@@ -36,9 +36,11 @@ public:
     // Results
     struct AnswerRecord {
         int num;
-        int chosen;   // 1-based proposition chosen, 0 = no answer
+        int chosen;   // 1-based proposition chosen, 0 = no answer, -1 = several boxes ticked
         int answer;   // 1-based correct proposition
         bool pinned;
+        QVector<int> order = {};  // display position -> proposition index (0-based), as shown
+        quint32 mask = 0;         // ticked display positions
     };
     struct ResultRecord {
         QString mode;        // official, training, series, review

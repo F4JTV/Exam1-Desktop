@@ -3,7 +3,9 @@
 #include "miniz.h"
 #include "statement.h"
 
+#include <algorithm>
 #include <cstring>
+#include <optional>
 
 #include <QDateTime>
 #include <QDir>
@@ -85,6 +87,7 @@ struct ParsedQuestion {
     int theme;
     QString comment;
     QString course;
+    std::optional<bool> needsPicture; // "imageNecessaire" field, when the file has it
 };
 
 } // namespace
@@ -158,6 +161,9 @@ ImportResult run(const ImportSource &source, const QString &banksRoot, const Pro
         q.theme = jsonInt(o.value(QStringLiteral("themeNum")));
         q.comment = jsonText(o.value(QStringLiteral("commentaire")));
         q.course = jsonText(o.value(QStringLiteral("cours")));
+        const QJsonValue mark = o.value(QStringLiteral("imageNecessaire"));
+        if (mark.isBool())
+            q.needsPicture = mark.toBool();
         if (q.num < 0 || q.options.size() < 2) {
             ++skipped;
             continue;
@@ -315,15 +321,30 @@ ImportResult run(const ImportSource &source, const QString &banksRoot, const Pro
     }
     result.images = imageByNum.size();
 
-    // Presentation on the exam screen: text only when the picture holds nothing but the statement.
+    // Presentation on the exam screen (see src/statement.h): F6GPX's markers decide; the
+    // picture is analysed only for questions they do not cover.
     report(0.82, QStringLiteral("Analyse des énoncés"));
+    const Statement::Marks &marks = Statement::Marks::bundled();
+    // The questions file may carry F6GPX's markers itself: an "imageNecessaire" field, or the
+    // "- " kept at the start of the statement. Then the file decides.
+    const bool fileHasField = std::any_of(parsed.cbegin(), parsed.cend(), [](const ParsedQuestion &pq) {
+        return pq.needsPicture.has_value();
+    });
+    const bool fileHasMarkers = !fileHasField && std::any_of(parsed.cbegin(), parsed.cend(), [](const ParsedQuestion &pq) {
+        return Statement::hasPictureMarker(pq.text);
+    });
     int textOnlyCount = 0;
     for (int i = 0; i < parsed.size(); ++i) {
         ParsedQuestion &pq = parsed[i];
+        const std::optional<bool> marked = pq.needsPicture ? std::optional<bool>(!*pq.needsPicture)
+                                                           : Statement::textOnlyFromMarks(pq.num, pq.text, fileHasMarkers, marks);
+        pq.text = marks.repair(pq.num, pq.text);
         pq.displayText = Statement::displayText(pq.text);
         const QString image = imageByNum.value(pq.num);
         if (image.isEmpty()) {
             pq.textOnly = true;
+        } else if (marked) {
+            pq.textOnly = *marked;
         } else if (Statement::textIsComplete(pq.text)) {
             const QImage img(QDir(imagesOut).filePath(image));
             pq.textOnly = !Statement::analyseImage(img).graphic;
@@ -422,6 +443,9 @@ ImportResult run(const ImportSource &source, const QString &banksRoot, const Pro
                     {QStringLiteral("series"), QString::number(series.size())},
                     {QStringLiteral("images"), QString::number(imageByNum.size())},
                     {QStringLiteral("text_only"), QString::number(textOnlyCount)},
+                    // Origin of the picture/text decision (see src/statement.h).
+                    {QStringLiteral("markers"), fileHasField || fileHasMarkers ? QStringLiteral("file")
+                                                : marks.isEmpty() ? QStringLiteral("none") : marks.source()},
                     {QStringLiteral("answer_base"), zeroBased ? QStringLiteral("0") : QStringLiteral("1")},
                     {QStringLiteral("source"), source.label},
                     {QStringLiteral("imported_at"), QDateTime::currentDateTime().toString(Qt::ISODate)},

@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
 
+# The version is set here only: the application, the Windows, macOS and Linux packages,
+# the GitHub release (tag v<version>) and its notes (CHANGELOG.md) all follow it.
 project(Exam1
-    VERSION 4.0.1
+    VERSION 4.0.2
     DESCRIPTION "French amateur radio licence exam trainer"
     HOMEPAGE_URL "https://f6kgl-f5kff.fr/exam1/"
     LANGUAGES C CXX)
@@ -42,7 +44,10 @@ qt_add_executable(exam1 WIN32 MACOSX_BUNDLE
 )
 
 if(WIN32)
-    target_sources(exam1 PRIVATE packaging/windows/exam1.rc)
+    # Version information of exam1.exe, taken from project(VERSION) above.
+    set(EXAM1_ICO "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/exam1.ico")
+    configure_file(packaging/windows/exam1.rc.in "${CMAKE_CURRENT_BINARY_DIR}/exam1.rc" @ONLY)
+    target_sources(exam1 PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/exam1.rc")
 endif()
 
 if(APPLE)
@@ -146,6 +151,11 @@ qt_add_qml_module(exam1
         resources/icons/accessibility.svg
         resources/icons/caret-down.svg
 )
+
+# F6GPX's markers: which questions need their picture (built by tools/f6gpx_marks.py).
+qt_add_resources(exam1 "bank_marks"
+    PREFIX "/"
+    FILES resources/bank/marks.json)
 
 target_link_libraries(exam1 PRIVATE
     Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Sql Qt6::Network Qt6::Svg

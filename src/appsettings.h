@@ -18,6 +18,7 @@ class AppSettings : public QObject
     Q_PROPERTY(QString updateBaseUrl READ updateBaseUrl WRITE setUpdateBaseUrl NOTIFY changed)
     Q_PROPERTY(bool showStatementText READ showStatementText WRITE setShowStatementText NOTIFY changed)
     Q_PROPERTY(QString statementMode READ statementMode WRITE setStatementMode NOTIFY changed)
+    Q_PROPERTY(QString questionNumbers READ questionNumbers WRITE setQuestionNumbers NOTIFY changed)
     Q_PROPERTY(int trainingCount READ trainingCount WRITE setTrainingCount NOTIFY changed)
     Q_PROPERTY(int trainingMinutes READ trainingMinutes WRITE setTrainingMinutes NOTIFY changed)
     Q_PROPERTY(bool trainingInstant READ trainingInstant WRITE setTrainingInstant NOTIFY changed)
@@ -48,6 +49,10 @@ public:
     void setShowStatementText(bool v);
     QString statementMode() const;   // auto (picture only for diagrams, as on the ANFR exam) or image (always)
     void setStatementMode(const QString &v);
+    // Bank number of each question ("20003") next to "Question 11 / 20", so that it can be noted
+    // and worked on later: "training" (default: not in mock exams, as at the ANFR), "always", "never".
+    QString questionNumbers() const;
+    void setQuestionNumbers(const QString &v);
     int trainingCount() const;
     void setTrainingCount(int v);
     int trainingMinutes() const;

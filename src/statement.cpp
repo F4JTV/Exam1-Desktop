@@ -1,10 +1,83 @@
 #include "statement.h"
 
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QRegularExpression>
 #include <QVector>
 #include <algorithm>
 
 namespace Statement {
+
+namespace {
+
+// Comparison form of a statement: markers removed, spaces collapsed, lower case
+// (same as normalised() in tools/f6gpx_marks.py).
+QString comparable(const QString &text)
+{
+    QString s = text;
+    s.replace(QStringLiteral("''"), QStringLiteral("'"));
+    static const QRegularExpression lead(QStringLiteral("^[\\s*\\-]+"));
+    s.remove(lead);
+    return s.simplified().toLower();
+}
+
+} // namespace
+
+const Marks &Marks::bundled()
+{
+    static const Marks marks = [] {
+        QFile f(QStringLiteral(":/resources/bank/marks.json"));
+        return Marks(f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray());
+    }();
+    return marks;
+}
+
+Marks::Marks(const QByteArray &json)
+{
+    if (json.isEmpty())
+        return;
+    const QJsonObject root = QJsonDocument::fromJson(json).object();
+    m_source = root.value(QStringLiteral("source")).toString();
+    for (const QJsonValue &v : root.value(QStringLiteral("picture")).toArray())
+        m_picture.insert(v.toInt());
+    for (const QJsonValue &v : root.value(QStringLiteral("text")).toArray())
+        m_text.insert(v.toInt());
+    const QJsonObject statements = root.value(QStringLiteral("statements")).toObject();
+    for (auto it = statements.begin(); it != statements.end(); ++it)
+        m_statements.insert(it.key().toInt(), it.value().toString());
+}
+
+QString Marks::repair(int num, const QString &text) const
+{
+    const auto it = m_statements.constFind(num);
+    if (it == m_statements.constEnd())
+        return text;
+    const QString full = comparable(it.value());
+    const QString mine = comparable(text);
+    // The conversion loses 1 to 6 characters; anything else is a different statement.
+    const int lost = int(full.size() - mine.size());
+    if (mine.isEmpty() || lost < 1 || lost > 10 || !full.contains(mine))
+        return text;
+    // Keep F6GPX's marker when the file carries it: it still decides at load time.
+    return hasPictureMarker(text) ? QStringLiteral("- ") + it.value() : it.value();
+}
+
+bool hasPictureMarker(const QString &raw)
+{
+    static const QRegularExpression marker(QStringLiteral("^\\s*-"));
+    return marker.match(raw).hasMatch();
+}
+
+std::optional<bool> textOnlyFromMarks(int num, const QString &raw, bool fileHasMarkers, const Marks &marks)
+{
+    if (fileHasMarkers)
+        return !hasPictureMarker(raw);
+    if (marks.covers(num))
+        return !marks.needsPicture(num);
+    return std::nullopt;
+}
 
 QString displayText(const QString &raw)
 {

@@ -640,7 +640,7 @@ void ExamSession::computeAndStore()
                     chosen = it.order.at(lowestBit(it.mask)) + 1;
                 else if (it.mask != 0)
                     chosen = -1; // several boxes ticked
-                rec.answers.push_back({q->num, chosen, q->answer, it.pinned});
+                rec.answers.push_back({q->num, chosen, q->answer, it.pinned, it.order, it.mask});
             }
         }
         p.score = legacy ? 3 * p.correct - p.wrong : p.correct;

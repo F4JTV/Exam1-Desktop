@@ -17,10 +17,11 @@ L'écran d'examen reproduit l'interface que l'ANFR utilise désormais pour l'exa
   - Barème actuel : 1 point par bonne réponse, et 0 point pour une réponse fausse, une absence de réponse ou plusieurs cases cochées. Une épreuve est réussie à partir de 10/20. L'ancien barème d'avant 2021 (+3 / −1) reste disponible.
   - Sauvegarde automatique toutes les quelques secondes (« dernière sauvegarde »). Une session interrompue par un plantage ou une coupure de courant peut être reprise depuis l'accueil.
 - **Entraînement par thèmes** : choix libre des familles, du nombre de questions et de la durée, avec correction immédiate en option (commentaire et lien vers le cours de F6KGL).
+- **Numéro des questions** : à l'entraînement, le numéro de chaque question dans la base (par exemple n° 20003) s'affiche à côté de « Question 11 / 20 », pour la noter et la retrouver dans la consultation de la base. Un réglage permet de l'afficher toujours, seulement à l'entraînement (par défaut) ou jamais.
 - **Séries** : les séries fixes C, P, R et T publiées avec la base. Tout le monde reçoit les mêmes questions, ce qui convient aux séances en radio-club.
 - **Révisions** : questions ratées lors de la dernière réponse, questions enregistrées et questions jamais vues.
 - **Consultation de la base** : recherche par mot, valeur ou numéro, filtre par thème, par questions enregistrées ou par erreurs.
-- **Résultats** : historique par candidat, évolution des notes, correction complète de chaque épreuve passée.
+- **Résultats** : historique par candidat, évolution des notes, correction complète de chaque épreuve passée. La correction se présente comme l'écran d'examen : propositions dans l'ordre affiché, cases cochées, bonne réponse, commentaire et lien vers le cours. Elle reste consultable à tout moment depuis « Résultats ».
 - **Plusieurs candidats** sur le même ordinateur, chacun avec ses propres résultats et statistiques.
 - **Accessibilité** : police à lisibilité renforcée (Atkinson Hyperlegible) en dehors de l'écran d'examen, taille du texte réglable, thème sombre et réponses au clavier (A à D, P, Espace).
 - **Mode portable** : un fichier vide `portable.txt` placé à côté de `exam1.exe` garde toutes les données dans un dossier `userdata` voisin, pratique sur une clé USB.
@@ -47,12 +48,23 @@ Dans `questions.json`, `reponse` numérote les propositions à partir de 0. L'im
 
 À l'examen de l'ANFR, seules les questions comportant un schéma, une formule ou un dessin affichent une image ; les autres sont présentées en texte. Dans la base Exam'1, chaque question possède une image : l'énoncé dessiné sur une fiche jaune. Pour les questions illustrées, le champ `question` ne contient qu'une courte description.
 
-À l'installation de la base, `src/statement.cpp` décide pour chaque question si elle s'affiche en texte seul. Les deux conditions suivantes doivent être réunies :
+Jean-Luc F6GPX repère ces questions dans le fichier Excel de la base : leur énoncé commence par « - » (saisi « '- » dans Excel). La conversion en `questions.json` par le REF supprime ce repère. La liste tirée de son fichier est donc livrée avec l'application (`resources/bank/marks.json`), et `src/statement.cpp` l'applique dans cet ordre :
 
-- **L'image ne contient que du texte.** Aucun trait sombre rectiligne de plus de 50 px environ (fils, axes, barres de fraction, cadres) et aucune zone colorée significative.
-- **Le texte est un énoncé complet.** Il tient sur une seule ligne et se termine comme une question. Il ne renvoie pas à une figure (« schéma », « ce montage », « courbe »…) et n'emploie pas les abréviations d'unités en minuscules (« 14v », « 100 hz ») typiques des descriptions d'images.
+1. Une question sans image s'affiche en texte.
+2. Si `questions.json` fournit l'information, elle décide : champ booléen `imageNecessaire` de chaque question, ou repère « - » conservé en tête d'énoncé.
+3. Sinon, la liste de F6GPX décide : image pour les questions repérées, texte pour les autres.
+4. Une question ajoutée après cette liste est analysée : elle s'affiche en texte seulement si son image ne contient que du texte et si son énoncé est complet. Au moindre doute, l'image est conservée.
 
-Au moindre doute, l'image est conservée. Sur la base de septembre 2026, 1 695 questions sur 2 961 s'affichent en texte. Un réglage permet d'afficher l'image pour toutes les questions.
+La conversion du REF ampute aussi quelques énoncés d'un à six caractères (« Un mélangeu », « Ension aux bornes de la pile »). Pour ces questions, l'application reprend l'énoncé complet du fichier de F6GPX.
+
+Avec la liste tirée de `Questions_v3aw.xls`, 1 927 questions sur 2 961 s'affichent en texte et 1 034 avec leur image ; 278 énoncés amputés sont rétablis. La liste est aussi appliquée aux bases déjà installées, sans les reconstruire. Un réglage permet d'afficher l'image pour toutes les questions.
+
+Quand F6GPX publie une nouvelle version de son fichier, il suffit de régénérer la liste, puis de recompiler l'application :
+
+```bash
+pip install xlrd openpyxl
+python3 tools/f6gpx_marks.py Questions_vXXX.xls --questions packaging/data/questions.json
+```
 
 Chaque base est enregistrée sous forme d'une base SQLite (`bank.sqlite`) et d'un dossier `images/`, dans le dossier de données de l'application :
 
@@ -60,18 +72,33 @@ Chaque base est enregistrée sous forme d'une base SQLite (`bank.sqlite`) et d'u
 - Linux : `~/.local/share/Exam1/Exam1`
 - macOS : `~/Library/Application Support/Exam1/Exam1`
 
+## Systèmes pris en charge
+
+| Système | Paquet | Qt utilisé | État |
+|---|---|---|---|
+| Windows 10 et 11 (64 bits) | installeur `.exe` | 6.8 (GitHub Actions) | testé avec succès |
+| macOS 12 ou plus récent (Apple Silicon et Intel) | image disque `.dmg` | 6.8 (GitHub Actions) | testé avec succès |
+| Ubuntu 24.04 | `.deb` | 6.4 (distribution) | testé avec succès |
+| Ubuntu 26.04 | `.deb` | 6.10 (distribution) | compilé, pas encore testé |
+| Debian 12 | `.deb` | 6.4 (distribution) | compilé, pas encore testé |
+| Debian 13 | `.deb` | 6.8 (distribution) | compilé, pas encore testé |
+
+Sous Linux, seul le paquet `.deb` pour Ubuntu 24.04 a été testé. Les paquets pour Ubuntu 26.04, Debian 12 et Debian 13 sont produits automatiquement, mais n'ont pas encore été essayés sur ces systèmes. Les versions Windows et macOS ont été testées avec succès.
+
 ## Compilation
 
-### Linux (Ubuntu 24.04, Qt 6.4 de la distribution)
+### Linux (Ubuntu 24.04 / 26.04, Debian 12 / 13, Qt 6 de la distribution)
+
+Le paquet se compile sur la distribution à laquelle il est destiné, avec les paquets Qt 6 de celle-ci :
 
 ```bash
 packaging/linux/build_linux.sh --install-deps   # la première fois : installe les dépendances de compilation
 packaging/linux/build_linux.sh                  # compile build/exam1
-packaging/linux/make_deb.sh --fetch-bank        # crée build/exam1_<version>_amd64.deb avec la base actuelle
-sudo apt install ./build/exam1_4.0.1_amd64.deb
+packaging/linux/make_deb.sh --fetch-bank        # crée build/exam1_<version>_<distribution>_amd64.deb avec la base actuelle
+sudo apt install ./build/exam1_<version>_ubuntu24.04_amd64.deb
 ```
 
-Sans `--fetch-bank`, le paquet ne contient pas la base, et l'application la télécharge au premier lancement.
+Le nom du paquet indique la distribution (`ubuntu24.04`, `ubuntu26.04`, `debian12`, `debian13`) : un paquet compilé pour l'une ne convient pas aux autres. Sans `--fetch-bank`, le paquet ne contient pas la base, et l'application la télécharge au premier lancement.
 
 ### Windows (Visual Studio 2022, Qt 6.4 ou plus récent, Inno Setup 6)
 
@@ -111,12 +138,39 @@ L'icône `packaging/macos/exam1.icns` est générée par `tools/make_macos_icon.
 
 ### Compilation automatique (GitHub Actions)
 
-Le workflow `.github/workflows/release.yml` compile les trois paquets sur les machines de GitHub :
+Le workflow `.github/workflows/release.yml` compile tous les paquets sur les machines de GitHub : l'installeur Windows, l'image disque macOS et un paquet `.deb` pour chacune des distributions Ubuntu 24.04, Ubuntu 26.04, Debian 12 et Debian 13. Chaque paquet Linux est compilé dans un conteneur de sa distribution, avec les paquets Qt 6 de celle-ci.
 
-- **Tag `v*`** (par exemple `git tag v4.0.1 && git push origin v4.0.1`) : l'installeur Windows, le paquet Ubuntu 24.04 et l'image disque macOS sont joints à un brouillon de release. Il reste à ajouter les notes de version et à publier.
+- **Tag `v<version>`** : tous les paquets sont joints à un brouillon de release « Exam'1 <version> », avec ses notes de version (voir ci-dessous). Si la compilation échoue pour une distribution Linux, le brouillon est quand même créé avec les autres paquets : vérifiez l'exécution avant de publier.
 - **Run workflow** (onglet *Actions*) : les paquets sont compilés sans release et peuvent être téléchargés depuis la page de l'exécution, par exemple pour faire essayer la version macOS sur un Mac.
 
-La base de questions est téléchargée une seule fois sur le serveur du REF, puis intégrée aux trois paquets. Si ce téléchargement échoue, relancez le workflow manuellement en décochant *Bundle the current question bank* : l'application téléchargera alors la base au premier lancement. Les secrets à définir pour signer la version macOS sont décrits en tête du workflow.
+La base de questions est téléchargée une seule fois sur le serveur du REF, puis intégrée à tous les paquets. Si ce téléchargement échoue, relancez le workflow manuellement en décochant *Bundle the current question bank* : l'application téléchargera alors la base au premier lancement. Les secrets à définir pour signer la version macOS sont décrits en tête du workflow.
+
+### Publier une nouvelle version
+
+Le numéro de version n'est écrit qu'à un seul endroit : la ligne `VERSION` de `project()` dans `CMakeLists.txt`. L'application (fenêtre « À propos »), les noms et les métadonnées des paquets Windows, macOS et Linux, le tag attendu et les notes de la release en découlent.
+
+1. Dans `CMakeLists.txt`, passez la ligne `VERSION` au nouveau numéro, par exemple `4.0.3`.
+2. Dans `CHANGELOG.md`, ajoutez en haut une section `## 4.0.3` qui décrit les nouveautés.
+3. Publiez les modifications, puis le tag correspondant :
+
+   ```bash
+   git commit -am "Version 4.0.3"
+   git tag v4.0.3
+   git push origin main v4.0.3
+   ```
+
+Le workflow vérifie d'abord que le tag correspond à la version de `CMakeLists.txt` et que `CHANGELOG.md` contient sa section. Sinon, il s'arrête avant toute compilation. Il compile ensuite tous les paquets et crée le brouillon de release.
+
+Les notes de la release sont produites par `tools/release_notes.py`, à partir de :
+- la section de la version dans `CHANGELOG.md` ;
+- `packaging/release/notes.md.in` : téléchargements, installation, emplacement des données et remerciements, communs à toutes les versions ;
+- la version de la base de questions intégrée aux paquets.
+
+Pour les relire avant de publier :
+
+```bash
+python3 tools/release_notes.py --bank packaging/data -o notes.md
+```
 
 ## Notes de développement
 
@@ -125,6 +179,7 @@ Ces variables d'environnement facilitent les tests :
 - `EXAM1_USER_DIR` : remplace le dossier de données.
 - `EXAM1_DATA_DIR` : remplace le dossier de la base fournie.
 - `EXAM1_CAPTURE_DIR` : parcourt les écrans définis dans `Main.qml` (`tourStep`) et enregistre une capture de chacun. Fonctionne avec `QT_QPA_PLATFORM=offscreen`.
+- `EXAM1_WINDOW_SIZE` (par exemple `1000x660`, la taille minimale) : avec `EXAM1_CAPTURE_DIR`, fait les captures à cette taille de fenêtre, pour vérifier la disposition des écrans.
 
 Le QML est compilé uniquement en bytecode (`--only-bytecode`), car le compilateur QML vers C++ de Qt 6.4 compile mal certaines résolutions de propriétés.
 
@@ -134,7 +189,7 @@ Le QML est compilé uniquement en bytecode (`--only-bytecode`), car le compilate
 src/                partie C++
   bankimporter.*    construit une base (SQLite + images) à partir de questions.json / series.json / questions.zip
   bankstore.*       base installée, gardée en mémoire
-  statement.*       choix texte seul / image pour l'écran d'examen
+  statement.*       choix texte seul / image pour l'écran d'examen (repères de F6GPX)
   updater.*         vérification et téléchargement en ligne, import hors ligne, base fournie
   examsession.*     moteur d'examen : tirage, cases à cocher, épingles, chronomètre, notation, sauvegarde
   userstore.*       candidats, résultats, questions enregistrées, statistiques (user.sqlite)
@@ -143,11 +198,12 @@ src/                partie C++
 qml/                interface utilisateur
   pages/ExamPage.qml        écran d'examen sur le modèle de l'interface ANFR / Evalbox
   components/EvalQuestion.qml, EvalCheck.qml
-packaging/          scripts fetch_bank, compilation et paquets Linux, Windows et macOS
-.github/workflows/  compilation automatique des trois paquets (release.yml)
-tools/              génération de l'icône macOS
+packaging/          scripts fetch_bank, compilation et paquets Linux, Windows et macOS ; modèle des notes de release (release/)
+CHANGELOG.md        nouveautés de chaque version, reprises dans les notes de release
+.github/workflows/  compilation automatique de tous les paquets et brouillon de release (release.yml)
+tools/              liste des questions avec image (f6gpx_marks.py), notes de release (release_notes.py), icône macOS
 third_party/miniz   lecture des archives ZIP (MIT)
-resources/          polices (OFL) et icônes
+resources/          polices (OFL), icônes et liste des questions avec image (bank/marks.json)
 capture-accueil.png capture d'écran affichée dans ce README
 ```
 

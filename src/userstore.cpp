@@ -177,6 +177,14 @@ int UserStore::addResult(const ResultRecord &r)
         o.insert(QStringLiteral("a"), a.answer);
         if (a.pinned)
             o.insert(QStringLiteral("p"), true);
+        // Order shown and boxes ticked, so the correction can be shown again as on the exam screen.
+        if (!a.order.isEmpty()) {
+            QJsonArray order;
+            for (int i : a.order)
+                order.append(i);
+            o.insert(QStringLiteral("o"), order);
+            o.insert(QStringLiteral("m"), qint64(a.mask));
+        }
         details.append(o);
     }
     const QString now = QDateTime::currentDateTime().toString(Qt::ISODate);
@@ -291,6 +299,13 @@ QVariantMap UserStore::resultDetail(int id) const
         a.insert(QStringLiteral("chosen"), o.value(QStringLiteral("c")).toInt());
         a.insert(QStringLiteral("answer"), o.value(QStringLiteral("a")).toInt());
         a.insert(QStringLiteral("pinned"), o.value(QStringLiteral("p")).toBool());
+        if (o.contains(QStringLiteral("o"))) { // results recorded since version 4.0.2
+            QVariantList order;
+            for (const QJsonValue &i : o.value(QStringLiteral("o")).toArray())
+                order << i.toInt();
+            a.insert(QStringLiteral("order"), order);
+            a.insert(QStringLiteral("mask"), o.value(QStringLiteral("m")).toInt());
+        }
         answers << a;
     }
     m.insert(QStringLiteral("answers"), answers);
