@@ -1,9 +1,12 @@
-# Builds the Windows installer and portable zip, the macOS disk image and one Debian package per Linux
-# distribution: Ubuntu 24.04, Ubuntu 26.04, Debian 12 and Debian 13. Each .deb is built in a
-# container of its distribution, against that distribution's own Qt 6 packages.
+# Builds the Windows installer and portable zip, the macOS disk image, one Debian package per Linux
+# distribution (Ubuntu 24.04, Ubuntu 26.04, Debian 12 and Debian 13) and an AppImage for the other
+# distributions. Each .deb is built in a container of its distribution, against that distribution's
+# own Qt 6 packages; the AppImage in a Debian 12 container, with the Qt of Debian 12 inside.
+# The Android APK is built locally (packaging/android/build_android.sh) and attached by hand to the
+# draft release.
 #
 # Everything follows the version of CMakeLists.txt (project VERSION):
-# - Pushing the tag "v<version>" (e.g. v4.0.2) builds all the packages and creates a draft
+# - Pushing the tag "v<version>" (e.g. v4.1.0) builds all the packages and creates a draft
 #   GitHub release "Exam'1 <version>" with them. Its notes are made by tools/release_notes.py
 #   from the "## <version>" section of CHANGELOG.md and packaging/release/notes.md.in.
 #   Check the draft, then publish it.
@@ -162,6 +165,36 @@ jobs:
           path: build/exam1_*.deb
           if-no-files-found: error
 
+  appimage:
+    name: Linux AppImage
+    needs: [version, bank]
+    if: >-
+      ${{ !cancelled() && needs.version.result == 'success'
+          && (needs.bank.result == 'success' || needs.bank.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    # The AppImage runs on the systems whose glibc is at least Debian 12's (2.36).
+    container: debian:12
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        if: needs.bank.result == 'success'
+        with:
+          name: bank
+          path: packaging/data
+      - name: Build
+        run: bash packaging/linux/build_appimage.sh --host --install-deps
+      - uses: actions/upload-artifact@v7
+        with:
+          name: exam1-appimage
+          path: build-appimage/dist/Exam1-*-x86_64.AppImage
+          if-no-files-found: error
+          compression-level: 0
+
   macos:
     name: macOS disk image
     needs: [version, bank]
@@ -213,9 +246,9 @@ jobs:
 
   release:
     name: Draft GitHub release
-    needs: [version, bank, windows, linux, macos]
+    needs: [version, bank, windows, linux, appimage, macos]
     # Windows and macOS are required; the Linux packages that were built are attached even if
-    # one distribution failed (check the run before publishing the draft).
+    # one distribution or the AppImage failed (check the run before publishing the draft).
     if: >-
       ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.version.result == 'success'
           && needs.windows.result == 'success' && needs.macos.result == 'success' }}
@@ -235,8 +268,12 @@ jobs:
           name: bank
           path: bank
       - name: Write the release notes
-        # "## <version>" of CHANGELOG.md + packaging/release/notes.md.in + bundled bank version.
-        run: python3 tools/release_notes.py --bank bank -o "$RUNNER_TEMP/notes.md"
+        # "## <version>" of CHANGELOG.md + packaging/release/notes.md.in + bundled bank version,
+        # without the rows of packages that were not built. The Android APK, attached by hand
+        # afterwards, is kept.
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: python3 tools/release_notes.py --bank bank --dist dist --expect "Exam1-$VERSION.apk" -o "$RUNNER_TEMP/notes.md"
       - uses: softprops/action-gh-release@v3
         with:
           name: Exam'1 ${{ needs.version.outputs.version }}
