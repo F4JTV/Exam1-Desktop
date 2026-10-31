@@ -42,14 +42,18 @@ Button {
     rightPadding: compact ? 12 : 20
     opacity: enabled ? 1 : 0.45
 
+    // When the button is given less than its natural width (in a Flow with
+    // width: Math.min(implicitWidth, parent.width), or a layout with Layout.maximumWidth), the label
+    // wraps onto several lines instead of overflowing.
     contentItem: Item {
-        implicitWidth: row.implicitWidth
-        implicitHeight: row.implicitHeight
+        implicitWidth: (icon.visible ? icon.width + row.spacing : 0) + (label.visible ? label.implicitWidth : 0)
+        implicitHeight: Math.max(icon.visible ? icon.height : 0, label.visible ? label.height : 0)
         Row {
             id: row
             anchors.centerIn: parent
             spacing: 8
             Icon {
+                id: icon
                 visible: b.iconName.length > 0
                 name: b.iconName
                 color: b.tint
@@ -57,10 +61,14 @@ Button {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+                id: label
                 text: b.text
                 font: b.font
                 color: b.tint
                 visible: text.length > 0
+                width: Math.max(0, Math.min(implicitWidth, b.availableWidth - (icon.visible ? icon.width + row.spacing : 0)))
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
                 anchors.verticalCenter: parent.verticalCenter
             }
         }

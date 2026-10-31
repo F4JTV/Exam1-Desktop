@@ -21,7 +21,7 @@ CheckBox {
         font: c.font
         text: c.text
     }
-    implicitHeight: Math.max(34, contentItem.implicitHeight + topPadding + bottomPadding)
+    implicitHeight: Math.max(Style.touch ? 44 : 34, contentItem.implicitHeight + topPadding + bottomPadding)
 
     indicator: Rectangle {
         x: c.leftPadding

@@ -28,6 +28,12 @@ Page {
         return (Math.round(n * 10) / 10).toLocaleString(Qt.locale("fr_FR"), "f", n % 1 === 0 ? 0 : 1)
     }
     property int pendingDelete: 0
+    readonly property var themes: User.revision + Bank.questionCount >= 0
+        ? [{ cat: "reglementation", label: "Réglementation", list: Exam.themeStats("reglementation") },
+           { cat: "technique", label: "Technique", list: Exam.themeStats("technique") }]
+        : []
+    readonly property int weakCount: themes.reduce((n, c) => n + c.list.filter(t => t.weak).length, 0)
+    readonly property bool anyAnswer: themes.some(c => c.list.some(t => t.answers > 0))
 
     Flickable {
         anchors.fill: parent
@@ -37,9 +43,9 @@ Page {
 
         ColumnLayout {
             id: col
-            x: 48
-            y: 40
-            width: Math.min(1240, parent.width - 96)
+            x: Style.margin
+            y: Style.compact ? 20 : 40
+            width: Math.min(1240, parent.width - 2 * Style.margin)
             spacing: 24
 
             PageHeader {
@@ -73,6 +79,103 @@ Page {
                             values: sec.m
                             maxBars: 20
                         }
+                    }
+                }
+            }
+
+            Section {
+                Layout.fillWidth: true
+                title: "Réussite par thème"
+                subtitle: page.anyAnswer
+                    ? "Part des bonnes réponses dans chaque thème, toutes épreuves et révisions confondues. En rouge, les thèmes faibles : moins de 75 % de réussite, sur 5 réponses au moins."
+                    : "Le taux de réussite de chaque thème apparaîtra ici dès vos premières réponses."
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    visible: page.anyAnswer
+                    columns: col.width >= 900 * Style.k ? 2 : 1
+                    columnSpacing: 32
+                    rowSpacing: 20
+                    Repeater {
+                        model: page.themes
+                        delegate: ColumnLayout {
+                            id: catCol
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignTop
+                            spacing: 10
+                            Text {
+                                text: catCol.modelData.label
+                                font.family: Style.family
+                                font.pixelSize: Style.fM
+                                font.bold: true
+                                color: Style.text
+                            }
+                            Repeater {
+                                model: catCol.modelData.list
+                                delegate: GridLayout {
+                                    id: themeRow
+                                    required property var modelData
+                                    readonly property bool none: modelData.answers === 0
+                                    readonly property color tone: none ? Style.muted : (modelData.weak ? Style.red : (modelData.answers < 5 ? Style.blue : Style.green))
+                                    Layout.fillWidth: true
+                                    columns: 2
+                                    columnSpacing: 12
+                                    rowSpacing: 4
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: themeRow.modelData.name
+                                        font.family: Style.family
+                                        font.pixelSize: Style.fS
+                                        color: Style.text
+                                        wrapMode: Text.WordWrap
+                                    }
+                                    Text {
+                                        Layout.alignment: Qt.AlignRight | Qt.AlignTop
+                                        text: themeRow.none ? "—" : Math.round(themeRow.modelData.rate * 100) + " %"
+                                        font.family: Style.family
+                                        font.pixelSize: Style.fS
+                                        font.bold: true
+                                        color: themeRow.tone
+                                    }
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        implicitHeight: 8
+                                        radius: 4
+                                        color: Style.surfaceAlt
+                                        border.color: Style.line
+                                        Rectangle {
+                                            width: themeRow.none ? 0 : Math.max(height, parent.width * themeRow.modelData.rate)
+                                            height: parent.height
+                                            radius: 4
+                                            color: themeRow.tone
+                                        }
+                                    }
+                                    Text {
+                                        Layout.alignment: Qt.AlignRight
+                                        text: themeRow.modelData.seen + "/" + themeRow.modelData.questions + " vues"
+                                        font.family: Style.family
+                                        font.pixelSize: Style.fXs
+                                        color: Style.muted
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    visible: page.anyAnswer
+                    spacing: 12
+                    ActionButton {
+                        width: Math.min(implicitWidth, parent.width)
+                        iconName: "target"
+                        enabled: page.weakCount > 0
+                        text: page.weakCount > 0
+                              ? "Réviser mes thèmes faibles (" + page.weakCount + ")"
+                              : "Aucun thème faible"
+                        onClicked: Nav.window.go("review")
                     }
                 }
             }
@@ -113,13 +216,22 @@ Page {
                             Layout.fillWidth: true
                             implicitHeight: Math.max(64, rowLine.implicitHeight + 20)
                             color: index % 2 ? Style.surfaceAlt : Style.surface
-                            RowLayout {
+                            // Wide: one line. Narrow: date, figures and duration under the title.
+                            // Phone: the buttons on a second line.
+                            GridLayout {
                                 id: rowLine
-                                anchors.fill: parent
-                                anchors.leftMargin: 20
-                                anchors.rightMargin: 12
-                                spacing: 16
+                                readonly property bool phone: table.width < 560 * Style.k
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.leftMargin: Style.compact ? 14 : 20
+                                anchors.rightMargin: Style.compact ? 8 : 12
+                                columns: phone ? 3 : (rowItem.compact ? 4 : 7)
+                                columnSpacing: Style.compact ? 12 : 16
+                                rowSpacing: 0
                                 Rectangle {
+                                    Layout.row: 0
+                                    Layout.column: 0
                                     width: 10
                                     height: 10
                                     radius: 5
@@ -127,6 +239,8 @@ Page {
                                 }
                                 Text {
                                     visible: !rowItem.compact
+                                    Layout.row: 0
+                                    Layout.column: 1
                                     text: modelData.dateLabel
                                     font.family: Style.family
                                     font.pixelSize: Style.fS
@@ -134,6 +248,8 @@ Page {
                                     Layout.preferredWidth: Math.round(130 * Style.k)
                                 }
                                 ColumnLayout {
+                                    Layout.row: 0
+                                    Layout.column: rowItem.compact ? 1 : 2
                                     Layout.fillWidth: true
                                     spacing: 2
                                     Text {
@@ -158,6 +274,8 @@ Page {
                                 }
                                 Text {
                                     visible: !rowItem.compact
+                                    Layout.row: 0
+                                    Layout.column: 3
                                     text: rowItem.figures
                                     font.family: Style.family
                                     font.pixelSize: Style.fS
@@ -166,6 +284,8 @@ Page {
                                 }
                                 Text {
                                     visible: !rowItem.compact
+                                    Layout.row: 0
+                                    Layout.column: 4
                                     text: App.formatDuration(modelData.secondsUsed)
                                     font.family: Style.family
                                     font.pixelSize: Style.fS
@@ -173,6 +293,8 @@ Page {
                                     Layout.preferredWidth: Math.round(56 * Style.k)
                                 }
                                 Text {
+                                    Layout.row: 0
+                                    Layout.column: rowItem.compact ? 2 : 5
                                     text: page.fmt(modelData.note20) + "/20"
                                     font.family: Style.family
                                     font.pixelSize: Style.fL
@@ -181,20 +303,27 @@ Page {
                                     horizontalAlignment: Text.AlignRight
                                     Layout.preferredWidth: Math.round(72 * Style.k)
                                 }
-                                ActionButton {
-                                    variant: "ghost"
-                                    compact: true
-                                    text: "Correction"
-                                    onClicked: Nav.window.open("CorrectionPage", { resultId: modelData.id })
-                                }
-                                ActionButton {
-                                    variant: "ghost"
-                                    compact: true
-                                    iconName: "trash"
-                                    tint: Style.muted
-                                    text: ""
-                                    Accessible.name: "Supprimer ce résultat"
-                                    onClicked: { page.pendingDelete = modelData.id; deleteDialog.open() }
+                                Row {
+                                    Layout.row: rowLine.phone ? 1 : 0
+                                    Layout.column: rowLine.phone ? 1 : (rowItem.compact ? 3 : 6)
+                                    Layout.columnSpan: rowLine.phone ? 2 : 1
+                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                    spacing: 4
+                                    ActionButton {
+                                        variant: "ghost"
+                                        compact: true
+                                        text: "Correction"
+                                        onClicked: Nav.window.open("CorrectionPage", { resultId: modelData.id })
+                                    }
+                                    ActionButton {
+                                        variant: "ghost"
+                                        compact: true
+                                        iconName: "trash"
+                                        tint: Style.muted
+                                        text: ""
+                                        Accessible.name: "Supprimer ce résultat"
+                                        onClicked: { page.pendingDelete = modelData.id; deleteDialog.open() }
+                                    }
                                 }
                             }
                         }

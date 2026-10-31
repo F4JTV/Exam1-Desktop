@@ -39,6 +39,46 @@ QtObject {
     readonly property color muted: dark ? "#9DAAB7" : "#58636F"
     readonly property color focus: dark ? "#FFD400" : "#1C5BA8"
 
+    // Exam screen (the Evalbox look of the ANFR exam): white by default, dark on request
+    // (Settings > Affichage, or the accessibility menu of the exam).
+    readonly property bool examDark: Prefs.examTheme === "dark"
+    readonly property color evPage: examDark ? "#161C22" : "#FFFFFF"        // page, dialogs
+    readonly property color evField: examDark ? "#232B34" : "#FFFFFF"       // check boxes, buttons
+    readonly property color evInk: examDark ? "#E3E7EB" : "#212529"         // text
+    readonly property color evMuted: examDark ? "#9AA6B0" : "#6C7B7C"       // secondary text
+    readonly property color evFaint: examDark ? "#5E6873" : "#C6C7C9"       // "Choix multiples"
+    readonly property color evRule: examDark ? "#55606B" : "#9AA9AC"        // line before "Question 3 / 20"
+    readonly property color evDash: examDark ? "#323B45" : "#E5E5E5"        // dashes of the header line
+    readonly property color evLine: examDark ? "#36404A" : "#DEE2E6"        // separators
+    readonly property color evOutline: examDark ? "#8A949E" : "#6C757D"     // outlined buttons
+    readonly property color evBoxLine: examDark ? "#6E7782" : "#BFBFBF"     // empty check box
+    readonly property color evLink: examDark ? "#6EA8FF" : "#0A58CA"
+    readonly property color evLinkSoft: examDark ? "#203650" : "#E7F1FF"
+    readonly property color evSelection: examDark ? "#2B4A72" : "#CFE2FF"
+    readonly property color evOk: examDark ? "#5CCB8A" : "#198754"          // answered, right
+    readonly property color evBad: examDark ? "#FF8A80" : "#DC3545"
+    readonly property color evOkText: examDark ? "#7DDBA3" : "#0F5132"
+    readonly property color evBadText: examDark ? "#FF9A90" : "#842029"
+    readonly property color evOkSoft: examDark ? "#1D3A2A" : "#D1E7DD"
+    readonly property color evOkSofter: examDark ? "#18301F" : "#E9F5EE"
+    readonly property color evOkEdge: examDark ? "#2F6B4A" : "#A3CFBB"
+    readonly property color evBadSoft: examDark ? "#45201E" : "#F8D7DA"
+    readonly property color evWarnSoft: examDark ? "#3D3418" : "#FFF3CD"
+    readonly property color evWarnEdge: examDark ? "#6B5A20" : "#FFE69C"
+    readonly property color evPinHover: examDark ? "#4A3F1F" : "#FFF6D6"
+    readonly property color evLabelDone: examDark ? "#5CCB8A" : "#2B7C57"   // "Question 3 / 20" once answered
+    // Top band
+    readonly property color evBar: examDark ? "#2E353D" : "#AEB3B9"
+    readonly property color evBarHover: examDark ? "#424A54" : "#BEC3C9"
+    readonly property color evBarButton: examDark ? "#424A54" : "#C6CACF"
+    readonly property color evBarPressed: examDark ? "#545E69" : "#9399A0"
+    readonly property color evBarInk: examDark ? "#E3E7EB" : "#212529"
+    readonly property color evBarIcon: examDark ? "#D5DAE0" : "#3A3F45"
+    readonly property color evBarMuted: examDark ? "#AEB6BF" : "#6C737B"
+    readonly property color evNav: examDark ? "#555D66" : "#8E9196"        // question numbers
+    readonly property color evNavHover: examDark ? "#66707A" : "#7C8085"
+    readonly property color evNavEdge: examDark ? "#6E7782" : "#9EA2A7"
+
     // Type scale (pixels)
     readonly property string family: "Atkinson Hyperlegible"
     readonly property int fXs: Math.round(12 * k)
@@ -49,12 +89,20 @@ QtObject {
     readonly property int fXxl: Math.round(34 * k)
     readonly property int fHero: Math.round(76 * k)
 
+    // Window size, set by Main.qml. Phones and narrow windows get smaller margins, a menu
+    // button instead of the left rail, and taller touch targets on a touch screen.
+    property real windowWidth: 1320
+    readonly property bool touch: App.mobile
+    readonly property bool compact: windowWidth < 600
+    readonly property int margin: windowWidth < 600 ? 16 : windowWidth < 900 ? 28 : 48   // page side margin
+    readonly property int hit: touch ? 44 : 38   // minimum height of buttons and choices
+
     // Geometry
     readonly property int r1: 4
     readonly property int r2: 8
     readonly property int r3: 14
     readonly property int gap: 16
-    readonly property int pad: 24
+    readonly property int pad: compact ? 16 : 24
     readonly property int readable: 860   // max width of reading columns
 
     function iconUrl(name, c) {

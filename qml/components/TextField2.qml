@@ -12,7 +12,7 @@ TextField {
     leftPadding: 12
     rightPadding: 12
     background: Rectangle {
-        implicitHeight: 40
+        implicitHeight: Style.touch ? 44 : 40
         implicitWidth: 240
         radius: Style.r2
         color: Style.surface

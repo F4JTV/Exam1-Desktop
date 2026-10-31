@@ -62,46 +62,51 @@ Item {
 
         // Header line
         Item {
+            id: head
             Layout.fillWidth: true
             implicitHeight: Math.round(34 * q.k)
+            // Narrow screen and long session ("Question 120 / 200"): no lead line, closer items.
+            readonly property bool tight: 32 + 14 + label.implicitWidth + (refLabel.visible ? 10 + refLabel.implicitWidth : 0)
+                                          + 16 + pinButton.width + 40 > width
             Rectangle {
                 id: lead
-                width: 32
+                visible: !head.tight
+                width: head.tight ? 0 : 32
                 height: 2
-                color: "#9AA9AC"
+                color: Style.evRule
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
                 id: label
                 anchors.left: lead.right
-                anchors.leftMargin: 14
+                anchors.leftMargin: head.tight ? 0 : 14
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Question " + q.position + " / " + q.total
                 font.family: q.family
                 font.pixelSize: Math.round(16 * q.k)
-                color: q.answered ? "#2B7C57" : "#6C7B7C"
+                color: q.answered ? Style.evLabelDone : Style.evMuted
             }
             // Bank number, to note the question and find it later in "Base de questions".
             TextEdit {
                 id: refLabel
                 visible: q.showRef && q.ref.length > 0
                 anchors.left: label.right
-                anchors.leftMargin: 10
+                anchors.leftMargin: head.tight ? 8 : 10
                 anchors.verticalCenter: parent.verticalCenter
                 text: "n° " + q.ref
                 readOnly: true
                 selectByMouse: true
                 font.family: q.family
                 font.pixelSize: Math.round(14 * q.k)
-                color: "#6C7B7C"
-                selectionColor: "#CFE2FF"
-                selectedTextColor: "#212529"
+                color: Style.evMuted
+                selectionColor: Style.evSelection
+                selectedTextColor: Style.evInk
                 Accessible.name: "Question numéro " + q.ref
             }
             AbstractButton {
                 id: pinButton
                 anchors.left: refLabel.visible ? refLabel.right : label.right
-                anchors.leftMargin: 16
+                anchors.leftMargin: head.tight ? 8 : 16
                 anchors.verticalCenter: parent.verticalCenter
                 // In review, only shows that the question had been pinned.
                 visible: !q.review || q.pinned
@@ -116,7 +121,7 @@ Item {
                 ToolTip.text: q.pinned ? "Retirer l'épingle" : "Épingler pour y revenir"
                 background: Rectangle {
                     radius: 4
-                    color: q.pinned ? "#FFCA2C" : (pinButton.hovered ? "#FFF6D6" : "#FFFFFF")
+                    color: q.pinned ? "#FFCA2C" : (pinButton.hovered ? Style.evPinHover : Style.evField)
                     border.width: 1
                     border.color: "#FFC107"
                 }
@@ -136,23 +141,27 @@ Item {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 height: 2
+                property color ink: Style.evDash
+                onInkChanged: requestPaint()
                 onWidthChanged: requestPaint()
                 onPaint: {
                     var ctx = getContext("2d")
                     ctx.clearRect(0, 0, width, height)
-                    ctx.fillStyle = "#E5E5E5"
+                    ctx.fillStyle = ink
                     for (var x = 0; x < width; x += 22)
                         ctx.fillRect(x, 0, 14, 2)
                 }
             }
             Text {
+                // Hidden when the dashes are too short to carry it above them.
+                visible: dashes.width >= implicitWidth
                 anchors.right: parent.right
                 anchors.bottom: dashes.top
                 anchors.bottomMargin: 4
                 text: "Choix multiples"
                 font.family: q.family
                 font.pixelSize: Math.max(9, Math.round(10 * q.k))
-                color: "#C6C7C9"
+                color: Style.evFaint
             }
         }
 
@@ -178,7 +187,7 @@ Item {
             textFormat: Text.PlainText
             font.family: q.family
             font.pixelSize: Math.round(16 * q.k)
-            color: "#212529"
+            color: Style.evInk
             wrapMode: Text.WordWrap
             lineHeight: 1.25
         }
@@ -213,8 +222,8 @@ Item {
             Layout.fillWidth: true
             implicitHeight: corr.implicitHeight + 24
             radius: 4
-            color: q.bits === 1 && ((q.selection >> q.correct) & 1) ? "#D1E7DD" : "#FFF3CD"
-            border.color: q.bits === 1 && ((q.selection >> q.correct) & 1) ? "#A3CFBB" : "#FFE69C"
+            color: q.bits === 1 && ((q.selection >> q.correct) & 1) ? Style.evOkSoft : Style.evWarnSoft
+            border.color: q.bits === 1 && ((q.selection >> q.correct) & 1) ? Style.evOkEdge : Style.evWarnEdge
             ColumnLayout {
                 id: corr
                 anchors.left: parent.left
@@ -228,7 +237,7 @@ Item {
                     font.family: q.family
                     font.pixelSize: Math.round(16 * q.k)
                     font.bold: true
-                    color: "#212529"
+                    color: Style.evInk
                     text: q.multiple || q.bits > 1 ? "Plusieurs cases cochées : réponse comptée fausse. La bonne réponse est : " + q.options[q.correct]
                           : q.selection === 0 ? "Sans réponse. La bonne réponse est : " + q.options[q.correct]
                           : (q.selection >> q.correct) & 1 ? "Bonne réponse."
@@ -240,15 +249,17 @@ Item {
                     wrapMode: Text.WordWrap
                     font.family: q.family
                     font.pixelSize: Math.round(15 * q.k)
-                    color: "#212529"
+                    color: Style.evInk
                     text: q.comment
                     lineHeight: 1.2
                 }
                 Text {
                     visible: q.course.length > 0
+                    Layout.maximumWidth: corr.width
+                    wrapMode: Text.WordWrap
                     font.family: q.family
                     font.pixelSize: Math.round(15 * q.k)
-                    color: "#0A58CA"
+                    color: Style.evLink
                     font.underline: courseArea.containsMouse
                     text: "Revoir ce point dans le cours de F6KGL"
                     MouseArea {
@@ -272,7 +283,7 @@ Item {
                 text: q.themeName
                 font.family: q.family
                 font.pixelSize: Math.round(13 * q.k)
-                color: "#6C7B7C"
+                color: Style.evMuted
             }
             Item { Layout.fillWidth: true; visible: !q.review || q.themeName.length === 0 }
             AbstractButton {
@@ -285,8 +296,8 @@ Item {
                 Accessible.name: q.saved ? "Retirer des questions enregistrées" : "Enregistrer pour réviser"
                 background: Rectangle {
                     radius: 4
-                    color: saveBtn.hovered ? "#6C757D" : (q.saved ? "#E7F1FF" : "#FFFFFF")
-                    border.color: q.saved ? "#0A58CA" : "#6C757D"
+                    color: saveBtn.hovered ? Style.evOutline : (q.saved ? Style.evLinkSoft : Style.evField)
+                    border.color: q.saved ? Style.evLink : Style.evOutline
                 }
                 contentItem: Item {
                     implicitWidth: saveRow.implicitWidth
@@ -297,7 +308,7 @@ Item {
                         Icon {
                             anchors.verticalCenter: parent.verticalCenter
                             name: q.saved ? "bookmark-filled" : "bookmark"
-                            color: saveBtn.hovered ? "#FFFFFF" : (q.saved ? "#0A58CA" : "#6C757D")
+                            color: saveBtn.hovered ? Style.evPage : (q.saved ? Style.evLink : Style.evOutline)
                             size: Math.round(14 * q.k)
                         }
                         Text {
@@ -305,7 +316,7 @@ Item {
                             text: q.saved ? "Enregistrée" : "Enregistrer pour réviser"
                             font.family: q.family
                             font.pixelSize: Math.round(14 * q.k)
-                            color: saveBtn.hovered ? "#FFFFFF" : (q.saved ? "#0A58CA" : "#6C757D")
+                            color: saveBtn.hovered ? Style.evPage : (q.saved ? Style.evLink : Style.evOutline)
                         }
                     }
                 }
@@ -317,13 +328,13 @@ Item {
                 implicitWidth: showText.implicitWidth + 24
                 hoverEnabled: true
                 onClicked: q.revealRequested()
-                background: Rectangle { radius: 4; color: showBtn.hovered ? "#6C757D" : "#FFFFFF"; border.color: "#6C757D" }
+                background: Rectangle { radius: 4; color: showBtn.hovered ? Style.evOutline : Style.evField; border.color: Style.evOutline }
                 contentItem: Text {
                     id: showText
                     text: "Voir la réponse"
                     font.family: q.family
                     font.pixelSize: Math.round(14 * q.k)
-                    color: showBtn.hovered ? "#FFFFFF" : "#6C757D"
+                    color: showBtn.hovered ? Style.evPage : Style.evOutline
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
@@ -339,12 +350,12 @@ Item {
                 ToolTip.visible: hovered
                 ToolTip.delay: 500
                 ToolTip.text: "Question suivante"
-                background: Rectangle { radius: 4; color: nextBtn.hovered ? "#6C757D" : "#FFFFFF"; border.color: "#6C757D" }
+                background: Rectangle { radius: 4; color: nextBtn.hovered ? Style.evOutline : Style.evField; border.color: Style.evOutline }
                 contentItem: Item {
                     Icon {
                         anchors.centerIn: parent
                         name: "chevrons-down"
-                        color: nextBtn.hovered ? "#FFFFFF" : "#6C757D"
+                        color: nextBtn.hovered ? Style.evPage : Style.evOutline
                         size: Math.round(16 * q.k)
                     }
                 }

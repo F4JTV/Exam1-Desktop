@@ -24,9 +24,9 @@ Page {
 
         ColumnLayout {
             id: col
-            x: 48
-            y: 40
-            width: Math.min(900, parent.width - 96)
+            x: Style.margin
+            y: Style.compact ? 20 : 40
+            width: Math.min(900, parent.width - 2 * Style.margin)
             spacing: 24
 
             PageHeader {
@@ -129,12 +129,17 @@ Page {
                                         Layout.fillWidth: true
                                     }
                                 }
-                                RowLayout {
+                                // Actions: wrapped onto two lines if needed on a phone.
+                                Flow {
                                     Layout.row: narrow ? 1 : 0
                                     Layout.column: narrow ? 1 : 2
+                                    Layout.fillWidth: narrow
+                                    Layout.alignment: Qt.AlignVCenter
                                     spacing: 14
                                     Text {
                                         visible: isCurrent
+                                        height: renameButton.height
+                                        verticalAlignment: Text.AlignVCenter
                                         text: "Candidat actuel"
                                         font.family: Style.family
                                         font.pixelSize: Style.fS
@@ -142,6 +147,7 @@ Page {
                                         color: Style.blue
                                     }
                                     ActionButton {
+                                        width: Math.min(implicitWidth, parent.width)
                                         visible: !isCurrent
                                         variant: "secondary"
                                         compact: true
@@ -149,6 +155,8 @@ Page {
                                         onClicked: User.currentCandidate = modelData.id
                                     }
                                     ActionButton {
+                                        width: Math.min(implicitWidth, parent.width)
+                                        id: renameButton
                                         variant: "ghost"
                                         compact: true
                                         iconName: "edit"
@@ -160,6 +168,7 @@ Page {
                                         }
                                     }
                                     ActionButton {
+                                        width: Math.min(implicitWidth, parent.width)
                                         variant: "ghost"
                                         compact: true
                                         iconName: "trash"

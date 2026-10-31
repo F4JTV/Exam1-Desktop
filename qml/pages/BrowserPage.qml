@@ -20,7 +20,7 @@ Page {
     }
 
     header: Rectangle {
-        implicitHeight: headerCol.implicitHeight + 40
+        implicitHeight: headerCol.implicitHeight + (Style.compact ? 28 : 40)
         color: Style.surface
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Style.line }
         ColumnLayout {
@@ -28,11 +28,14 @@ Page {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 48
-            anchors.rightMargin: 48
+            anchors.leftMargin: Style.margin
+            anchors.rightMargin: Style.margin
             spacing: 14
-            RowLayout {
+            // Count beside the title, or below it on a phone.
+            GridLayout {
                 Layout.fillWidth: true
+                columns: Style.compact ? 1 : 2
+                rowSpacing: 2
                 Text {
                     text: "Base de questions"
                     font.family: Style.family
@@ -113,11 +116,11 @@ Page {
         model: Browser
         spacing: 24
         clip: true
-        topMargin: 28
+        topMargin: Style.compact ? 16 : 28
         bottomMargin: 48
         cacheBuffer: 1600
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
+        ScrollBar.vertical: ScrollBar { policy: Style.touch ? ScrollBar.AsNeeded : ScrollBar.AlwaysOn }
 
         delegate: Item {
             id: row
@@ -126,6 +129,7 @@ Page {
             required property string ref
             required property string statement
             required property url image
+            required property bool textOnly
             required property var options
             required property int answer
             required property string themeName
@@ -136,17 +140,17 @@ Page {
             implicitHeight: card.implicitHeight
             Rectangle {
                 id: card
-                width: Math.min(Style.readable + 48, list.width - 64)
+                width: Math.min(Style.readable + 2 * Style.pad, list.width - 2 * Style.margin)
                 anchors.horizontalCenter: parent.horizontalCenter
-                implicitHeight: sheet.implicitHeight + 48
+                implicitHeight: sheet.implicitHeight + 2 * Style.pad
                 radius: Style.r2
                 color: Style.surface
                 border.color: Style.line
                 QuestionSheet {
                     id: sheet
-                    x: 24
-                    y: 24
-                    width: parent.width - 48
+                    x: Style.pad
+                    y: Style.pad
+                    width: parent.width - 2 * Style.pad
                     mode: "browse"
                     position: row.index + 1
                     total: Browser.count
@@ -154,6 +158,7 @@ Page {
                     ref: row.ref
                     statement: row.statement
                     image: row.image
+                    textOnly: row.textOnly
                     options: row.options
                     selection: 0
                     correct: row.answer
@@ -173,6 +178,9 @@ Page {
             spacing: 12
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(implicitWidth, list.width - 2 * Style.margin)
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
                 text: Bank.ready ? "Aucune question ne correspond à ces critères." : "Aucune base de questions installée."
                 font.family: Style.family
                 font.pixelSize: Style.fL

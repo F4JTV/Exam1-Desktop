@@ -36,7 +36,7 @@ Flow {
             readonly property bool selected: seg.value === modelData.value
             hoverEnabled: true
             focusPolicy: Qt.StrongFocus
-            implicitHeight: Math.max(38, label.implicitHeight + 14)
+            implicitHeight: Math.max(Style.hit, label.implicitHeight + 14)
             // Measured in bold so that selecting a segment does not change the widths.
             implicitWidth: Math.ceil(boldMetrics.advanceWidth) + 32
             onClicked: seg.activated(modelData.value)

@@ -10,7 +10,11 @@ Page {
     background: Rectangle { color: Style.bg }
 
     property var chosen: []
-    property int count: Prefs.trainingCount
+    // Questions per chosen theme, from 1 to 10: the number of questions is always a multiple of the
+    // number of themes (6 themes: 6, 12, 18... up to 60), and follows the themes ticked or unticked.
+    property int perTheme: 1
+    readonly property int maxPerTheme: 10
+    readonly property int count: chosen.length * perTheme
     property int minutes: Prefs.trainingMinutes
     property bool instant: Prefs.trainingInstant
 
@@ -20,6 +24,9 @@ Page {
         for (var i = 0; i < saved.length; ++i)
             list.push(Number(saved[i]))
         chosen = list
+        // The last number of questions, as a number per theme.
+        if (list.length > 0)
+            perTheme = Math.max(1, Math.min(maxPerTheme, Math.round(Prefs.trainingCount / list.length)))
     }
 
     function has(id) { return chosen.indexOf(id) >= 0 }
@@ -92,9 +99,9 @@ Page {
 
         ColumnLayout {
             id: col
-            x: 48
-            y: 40
-            width: Math.min(1240, parent.width - 96)
+            x: Style.margin
+            y: Style.compact ? 20 : 40
+            width: Math.min(1240, parent.width - 2 * Style.margin)
             spacing: 28
 
             PageHeader {
@@ -141,10 +148,19 @@ Page {
                     Text { text: "Nombre de questions"; font.family: Style.family; font.pixelSize: Style.fM; font.bold: true; color: Style.text }
                     Spinner {
                         value: page.count
-                        from: 1
-                        to: 100
-                        step: 5
-                        onEdited: (v) => page.count = v
+                        from: page.chosen.length
+                        to: page.maxPerTheme * page.chosen.length
+                        step: Math.max(1, page.chosen.length)
+                        onEdited: (v) => page.perTheme = Math.max(1, Math.min(page.maxPerTheme, Math.round(v / Math.max(1, page.chosen.length))))
+                    }
+                    Text {
+                        visible: page.chosen.length > 0
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.family: Style.family
+                        font.pixelSize: Style.fS
+                        color: Style.muted
+                        text: page.perTheme + " question" + (page.perTheme > 1 ? "s" : "") + " par thème coché"
                     }
                     Text { text: "Durée"; font.family: Style.family; font.pixelSize: Style.fM; font.bold: true; color: Style.text; Layout.topMargin: 6 }
                     Spinner {

@@ -16,14 +16,15 @@ AbstractButton {
     checkable: false
     hoverEnabled: !locked
     focusPolicy: locked ? Qt.NoFocus : Qt.StrongFocus
-    implicitHeight: Math.max(26 * k, labelText.implicitHeight + 6)
+    // Taller on a touch screen, to be easy to hit with a finger.
+    implicitHeight: Math.max((Style.touch ? 38 : 26) * k, labelText.implicitHeight + 6)
     implicitWidth: box.width + 10 + labelText.implicitWidth
     Accessible.role: Accessible.CheckBox
     Accessible.checked: ticked
     Accessible.name: label
 
     background: Rectangle {
-        color: chk.feedback === 1 ? "#D1E7DD" : chk.feedback === 2 ? "#F8D7DA" : chk.feedback === 3 ? "#E9F5EE" : "transparent"
+        color: chk.feedback === 1 ? Style.evOkSoft : chk.feedback === 2 ? Style.evBadSoft : chk.feedback === 3 ? Style.evOkSofter : "transparent"
         radius: 3
         anchors.fill: parent
         anchors.leftMargin: -6
@@ -37,9 +38,9 @@ AbstractButton {
             height: width
             radius: 3
             anchors.verticalCenter: parent.verticalCenter
-            color: chk.ticked ? "#0D6EFD" : "#FFFFFF"
+            color: chk.ticked ? "#0D6EFD" : Style.evField
             border.width: 1
-            border.color: chk.ticked ? "#0D6EFD" : (chk.hovered ? "#86B7FE" : "#BFBFBF")
+            border.color: chk.ticked ? "#0D6EFD" : (chk.hovered ? "#86B7FE" : Style.evBoxLine)
             Icon {
                 anchors.centerIn: parent
                 visible: chk.ticked
@@ -66,7 +67,7 @@ AbstractButton {
             text: chk.label
             font.family: chk.family
             font.pixelSize: Math.round(16 * chk.k)
-            color: chk.feedback === 1 || chk.feedback === 3 ? "#0F5132" : chk.feedback === 2 ? "#842029" : "#212529"
+            color: chk.feedback === 1 || chk.feedback === 3 ? Style.evOkText : chk.feedback === 2 ? Style.evBadText : Style.evInk
             font.bold: chk.feedback === 1 || chk.feedback === 3
             wrapMode: Text.WordWrap
         }

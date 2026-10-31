@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Creates the Debian package for the distribution it runs on (Ubuntu 24.04 / 26.04, Debian 12 / 13):
-#   build/exam1_<version>_<distribution>_<arch>.deb, e.g. exam1_4.0.2_ubuntu24.04_amd64.deb
+#   build/exam1_<version>_<distribution>_<arch>.deb, e.g. exam1_4.1.0_ubuntu24.04_amd64.deb
 # Build it on the distribution it is meant for: the dependencies are those of its Qt packages.
 # The question bank in packaging/data (see packaging/fetch_bank.sh) is included when present.
 # Usage: packaging/linux/make_deb.sh [--fetch-bank]

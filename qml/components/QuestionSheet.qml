@@ -19,6 +19,7 @@ Item {
     property int num: 0
     property string ref: ""
     property url image
+    property bool textOnly: false    // F6GPX's markers: the statement is enough, as on the ANFR exam
     property string statement: ""
     property var options: []
     property int selection: 0        // ticked propositions (bit mask)
@@ -39,6 +40,9 @@ Item {
     signal revealRequested()
 
     readonly property bool hasImage: String(image).length > 0
+    // As on the exam screen: a picture only for questions with a diagram, a formula or a drawing
+    // (or always, with the "Toujours l'image d'Exam'1" setting); otherwise the statement as text.
+    readonly property bool showImage: hasImage && (Prefs.statementMode === "image" || !textOnly)
     readonly property bool locked: mode === "review" || mode === "browse" || (revealed && mode !== "exam")
     readonly property string letters: "ABCDEFGH"
     readonly property int bits: {
@@ -57,79 +61,93 @@ Item {
         width: qs.width
         spacing: 14
 
-        // Header --------------------------------------------------------------------------
-        RowLayout {
+        // Header: buttons on the right, or on a line of their own when the sheet is narrow.
+        GridLayout {
+            id: head
             Layout.fillWidth: true
-            spacing: 12
-            Text {
-                text: qs.mode === "browse" ? "Question n° " + qs.ref : "Question " + qs.position
-                font.family: Style.family
-                font.pixelSize: Style.fXl
-                font.bold: true
-                color: Style.text
-            }
-            Text {
-                text: "sur " + qs.total
-                font.family: Style.family
-                font.pixelSize: Style.fM
-                color: Style.muted
-                visible: qs.mode !== "browse"
-                Layout.alignment: Qt.AlignBaseline
-            }
-            Rectangle {
-                visible: qs.mode === "review" || (qs.mode === "training" && qs.revealed)
-                Layout.alignment: Qt.AlignVCenter
-                radius: 4
-                color: Style.surfaceAlt
-                border.color: Style.line
-                implicitWidth: refText.implicitWidth + 16
-                implicitHeight: refText.implicitHeight + 6
-                Text {
-                    id: refText
-                    anchors.centerIn: parent
-                    text: "n° " + qs.ref
-                    font.family: Style.family
-                    font.pixelSize: Style.fXs
-                    font.bold: true
-                    color: Style.muted
-                }
-            }
-            Text {
-                visible: qs.mode === "review" || qs.mode === "browse" || (qs.mode === "training" && qs.revealed)
-                text: qs.themeName
-                font.family: Style.family
-                font.pixelSize: Style.fS
-                color: Style.muted
-                elide: Text.ElideRight
+            readonly property bool narrow: qs.width < Math.round(560 * Style.k)
+            columns: narrow ? 1 : 2
+            columnSpacing: 12
+            rowSpacing: 4
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
+                spacing: 12
+                Text {
+                    text: qs.mode === "browse" ? "Question n° " + qs.ref : "Question " + qs.position
+                    font.family: Style.family
+                    font.pixelSize: Style.fXl
+                    font.bold: true
+                    color: Style.text
+                }
+                Text {
+                    text: "sur " + qs.total
+                    font.family: Style.family
+                    font.pixelSize: Style.fM
+                    color: Style.muted
+                    visible: qs.mode !== "browse"
+                    Layout.alignment: Qt.AlignBaseline
+                }
+                Rectangle {
+                    visible: qs.mode === "review" || (qs.mode === "training" && qs.revealed)
+                    Layout.alignment: Qt.AlignVCenter
+                    radius: 4
+                    color: Style.surfaceAlt
+                    border.color: Style.line
+                    implicitWidth: refText.implicitWidth + 16
+                    implicitHeight: refText.implicitHeight + 6
+                    Text {
+                        id: refText
+                        anchors.centerIn: parent
+                        text: "n° " + qs.ref
+                        font.family: Style.family
+                        font.pixelSize: Style.fXs
+                        font.bold: true
+                        color: Style.muted
+                    }
+                }
+                Text {
+                    visible: qs.mode === "review" || qs.mode === "browse" || (qs.mode === "training" && qs.revealed)
+                    text: qs.themeName
+                    font.family: Style.family
+                    font.pixelSize: Style.fS
+                    color: Style.muted
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
+                }
+                Item { Layout.fillWidth: true }
             }
-            Item { Layout.fillWidth: true }
 
-            ActionButton {
-                visible: qs.mode === "exam" || qs.mode === "training"
-                variant: qs.pinned ? "secondary" : "ghost"
-                compact: true
-                iconName: qs.pinned ? "pin-filled" : "pin"
-                tint: qs.pinned ? Style.pin : Style.blue
-                text: qs.pinned ? "Épinglée" : "Épingler"
-                onClicked: qs.pinRequested()
-                Accessible.name: qs.pinned ? "Retirer l'épingle de la question " + qs.position : "Épingler la question " + qs.position
-            }
-            ActionButton {
-                visible: qs.mode !== "exam"
-                variant: "ghost"
-                compact: true
-                iconName: qs.saved ? "bookmark-filled" : "bookmark"
-                text: qs.saved ? "Enregistrée" : "Enregistrer"
-                onClicked: qs.saveRequested()
+            Row {
+                spacing: 12
+                Layout.alignment: head.narrow ? Qt.AlignLeft : (Qt.AlignRight | Qt.AlignVCenter)
+                ActionButton {
+                    visible: qs.mode === "exam" || qs.mode === "training"
+                    variant: qs.pinned ? "secondary" : "ghost"
+                    compact: true
+                    iconName: qs.pinned ? "pin-filled" : "pin"
+                    tint: qs.pinned ? Style.pin : Style.blue
+                    text: qs.pinned ? "Épinglée" : "Épingler"
+                    onClicked: qs.pinRequested()
+                    Accessible.name: qs.pinned ? "Retirer l'épingle de la question " + qs.position : "Épingler la question " + qs.position
+                }
+                ActionButton {
+                    visible: qs.mode !== "exam"
+                    variant: "ghost"
+                    compact: true
+                    leftPadding: head.narrow ? 0 : implicitHeight / 2
+                    iconName: qs.saved ? "bookmark-filled" : "bookmark"
+                    text: qs.saved ? "Enregistrée" : "Enregistrer"
+                    onClicked: qs.saveRequested()
+                }
             }
         }
 
-        // Question sheet ---------------------------------------------------------------------
+        // Question sheet (picture), or the statement as text --------------------------------
         Rectangle {
+            visible: qs.showImage
             Layout.fillWidth: true
-            Layout.preferredHeight: qs.hasImage ? img.height + 2 : statementText.implicitHeight + 48
+            Layout.preferredHeight: img.height + 2
             color: Style.sheet
             radius: Style.r2
             border.color: qs.current ? Style.blue : Style.sheetEdge
@@ -137,8 +155,7 @@ Item {
             clip: true
             Image {
                 id: img
-                visible: qs.hasImage
-                source: qs.image
+                source: qs.showImage ? qs.image : ""
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
                 anchors.topMargin: 1
@@ -151,23 +168,21 @@ Item {
                 Accessible.role: Accessible.Graphic
                 Accessible.name: qs.statement
             }
-            Text {
-                id: statementText
-                visible: !qs.hasImage
-                anchors.fill: parent
-                anchors.margins: 24
-                text: qs.statement
-                font.family: Style.family
-                font.pixelSize: Style.fXl
-                font.bold: true
-                color: Style.sheetInk
-                wrapMode: Text.WordWrap
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
         }
         Text {
-            visible: qs.hasImage && Prefs.showStatementText && qs.statement.length > 0
+            visible: !qs.showImage && qs.statement.length > 0
+            Layout.fillWidth: true
+            text: qs.statement
+            // Plain text: keeps the line breaks of multi-line statements ("1) ... 2) ...").
+            textFormat: Text.PlainText
+            font.family: Style.family
+            font.pixelSize: Style.fL
+            color: Style.text
+            wrapMode: Text.WordWrap
+            lineHeight: 1.2
+        }
+        Text {
+            visible: qs.showImage && Prefs.showStatementText && qs.statement.length > 0
             text: qs.statement
             font.family: Style.family
             font.pixelSize: Style.fS
@@ -263,6 +278,7 @@ Item {
                     text: "Ouvrir le cours de F6KGL sur ce point"
                     onClicked: App.openUrl(qs.course)
                     leftPadding: 0
+                    Layout.maximumWidth: corr.width
                 }
             }
         }

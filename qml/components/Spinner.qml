@@ -3,6 +3,8 @@ import QtQuick.Controls
 import Exam1App
 
 // Compact numeric stepper: [-] value [+]
+// The buttons emit edited() and the page updates the value it binds to: the binding is kept, so a
+// value computed by the page (number of training questions) follows its other changes too.
 Row {
     id: sp
     property int value: 0
@@ -16,10 +18,8 @@ Row {
     spacing: 0
     function setValue(v) {
         var n = Math.max(from, Math.min(to, v))
-        if (n !== value) {
-            value = n
+        if (n !== value)
             edited(n)
-        }
     }
 
     ActionButton {

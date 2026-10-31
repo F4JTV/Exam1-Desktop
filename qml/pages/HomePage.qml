@@ -135,6 +135,8 @@ Page {
                     font.pixelSize: Style.fL
                     font.bold: true
                     color: Style.text
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
                 }
                 Text {
                     text: pw.detail
@@ -160,6 +162,56 @@ Page {
             width: parent.width
             spacing: 0
 
+            // New version of the application published (GitHub release), until "Plus tard".
+            Rectangle {
+                visible: AppUpdate.available && AppUpdate.latestVersion !== Prefs.skippedAppVersion
+                Layout.fillWidth: true
+                implicitHeight: releaseRow.implicitHeight + 28
+                color: Style.blueSoft
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Style.blue; opacity: 0.4 }
+                GridLayout {
+                    id: releaseRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: Style.margin
+                    anchors.rightMargin: Style.margin
+                    columns: Style.compact ? 2 : 3
+                    columnSpacing: 16
+                    rowSpacing: 10
+                    Icon { name: "download"; color: Style.blue; size: 22; Layout.alignment: Qt.AlignTop }
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.family: Style.family
+                        font.pixelSize: Style.fM
+                        color: Style.text
+                        text: "Une nouvelle version d'Exam'1 est disponible : " + AppUpdate.latestVersion + " (vous avez la " + AppUpdate.currentVersion + ")."
+                    }
+                    Flow {
+                        Layout.columnSpan: Style.compact ? 2 : 1
+                        Layout.fillWidth: Style.compact
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: 10
+                        ActionButton {
+                            text: "Télécharger"
+                            onClicked: App.openUrl(AppUpdate.downloadUrl)
+                        }
+                        ActionButton {
+                            variant: "ghost"
+                            text: "Nouveautés"
+                            visible: AppUpdate.releaseUrl.length > 0
+                            onClicked: App.openUrl(AppUpdate.releaseUrl)
+                        }
+                        ActionButton {
+                            variant: "ghost"
+                            text: "Plus tard"
+                            onClicked: Prefs.skippedAppVersion = AppUpdate.latestVersion
+                        }
+                    }
+                }
+            }
+
             // Unfinished session found on disk (power cut, crash...)
             Rectangle {
                 visible: Exam.hasSavedSession
@@ -168,15 +220,18 @@ Page {
                 color: Style.pinSoft
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Style.pin; opacity: 0.4 }
                 readonly property var info: Exam.savedSessionInfo
-                RowLayout {
+                // Buttons beside the text, or below it on a phone.
+                GridLayout {
                     id: resumeRow
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 48
-                    anchors.rightMargin: 48
-                    spacing: 16
-                    Icon { name: "clock"; color: Style.pin; size: 22 }
+                    anchors.leftMargin: Style.margin
+                    anchors.rightMargin: Style.margin
+                    columns: Style.compact ? 2 : 3
+                    columnSpacing: 16
+                    rowSpacing: 10
+                    Icon { name: "clock"; color: Style.pin; size: 22; Layout.alignment: Qt.AlignTop }
                     Text {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
@@ -190,14 +245,19 @@ Page {
                                    + (i.remaining >= 0 ? ", " + App.formatDuration(i.remaining) + " restantes" : "") + " (sauvegarde du " + i.savedAt + ")."
                         }
                     }
-                    ActionButton {
-                        text: "Reprendre"
-                        onClicked: if (Exam.resumeSaved()) Nav.window.startExam()
-                    }
-                    ActionButton {
-                        variant: "secondary"
-                        text: "Abandonner"
-                        onClicked: Exam.discardSaved()
+                    Row {
+                        Layout.columnSpan: Style.compact ? 2 : 1
+                        Layout.alignment: Style.compact ? Qt.AlignRight : Qt.AlignVCenter
+                        spacing: 10
+                        ActionButton {
+                            text: "Reprendre"
+                            onClicked: if (Exam.resumeSaved()) Nav.window.startExam()
+                        }
+                        ActionButton {
+                            variant: "secondary"
+                            text: "Abandonner"
+                            onClicked: Exam.discardSaved()
+                        }
                     }
                 }
             }
@@ -208,10 +268,10 @@ Page {
             Rectangle {
                 id: hero
                 Layout.fillWidth: true
-                implicitHeight: heroGrid.implicitHeight + 88
+                implicitHeight: heroGrid.implicitHeight + (Style.compact ? 48 : 88)
                 color: Style.slate
 
-                readonly property real room: page.width - 96
+                readonly property real room: page.width - 2 * Style.margin
                 readonly property real platesWidth: 2 * Math.round(300 * Style.k) + 18
                 readonly property bool sideBySide: room >= Math.max(platesWidth, 640 * Style.k) + 40 + 340 * Style.k
                 readonly property bool platesInRow: room >= platesWidth
@@ -221,8 +281,8 @@ Page {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 48
-                    anchors.rightMargin: 48
+                    anchors.leftMargin: Style.margin
+                    anchors.rightMargin: Style.margin
                     columns: hero.sideBySide ? 2 : 1
                     columnSpacing: 40
                     rowSpacing: 28
@@ -236,7 +296,7 @@ Page {
                         Text {
                             text: "EXAM'1"
                             font.family: Style.family
-                            font.pixelSize: Style.fHero
+                            font.pixelSize: Style.compact ? Math.round(Style.fHero * 0.75) : Style.fHero
                             font.bold: true
                             font.italic: true
                             color: Style.yellow
@@ -307,6 +367,7 @@ Page {
                             }
                             ActionButton {
                                 id: complete
+                                width: Math.min(implicitWidth, hero.room)
                                 variant: "dark"
                                 compact: true
                                 text: "Examen complet : 40 questions en " + (Prefs.extendedTime ? 135 : 45) + " minutes"
@@ -324,7 +385,7 @@ Page {
             // Below the hero: other ways to practise, and progress (stacked on a narrow window).
             GridLayout {
                 Layout.fillWidth: true
-                Layout.margins: 40
+                Layout.margins: Style.compact ? Style.margin : 40
                 Layout.maximumWidth: 1240
                 columns: page.width - 80 >= 880 * Style.k ? 2 : 1
                 columnSpacing: 32

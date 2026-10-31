@@ -18,16 +18,22 @@ Page {
     readonly property bool lowTime: Exam.timed && remaining <= 300
     readonly property bool criticalTime: Exam.timed && remaining <= 60
     readonly property int containerWidth: Math.min(1140, width - 32)
+    // Phone or narrow window: the header takes two lines and the question buttons are shown on
+    // demand ("Grille"), to leave the screen to the questions.
+    readonly property bool compactHead: width < Math.round(720 * k)
+    // Phone held sideways (little height): the question buttons are shown on demand too.
+    readonly property bool gridOnDemand: compactHead || height < Math.round(600 * k)
+    property bool gridOpen: false
 
-    // Evalbox palette (sampled from the ANFR exam screens)
-    readonly property color barGrey: "#AEB3B9"
-    readonly property color navGrey: "#8E9196"
+    // Evalbox palette (sampled from the ANFR exam screens); Style.ev* follow the exam theme.
+    readonly property color barGrey: Style.evBar
+    readonly property color navGrey: Style.evNav
     readonly property color navGreen: "#3CC478"
     readonly property color pinOrange: "#FE9F43"
     readonly property color teal: "#007A9F"
-    readonly property color ink: "#212529"
+    readonly property color ink: Style.evInk
 
-    background: Rectangle { color: "#FFFFFF" }
+    background: Rectangle { color: Style.evPage }
     focus: true
 
     Connections {
@@ -61,6 +67,17 @@ Page {
         }
     }
     function askFinalize() { finalizeDialog.open() }
+    // Android "Back": closes the question grid, then offers to leave the exam.
+    function handleBack() {
+        if (gridOpen) {
+            gridOpen = false
+            return true
+        }
+        if (Exam.finished)
+            return false
+        quitDialog.open()
+        return true
+    }
 
     Keys.onPressed: (event) => {
         var map = { "a": 0, "b": 1, "c": 2, "d": 3, "1": 0, "2": 1, "3": 2, "4": 3 }
@@ -110,35 +127,49 @@ Page {
             y: Math.round(10 * page.k)
             spacing: Math.round(8 * page.k)
 
-            RowLayout {
+            // One line on a wide window; on a narrow one, the candidate and the time on the first
+            // line, the count, the grid button and "Finaliser" on the second.
+            GridLayout {
                 Layout.fillWidth: true
-                spacing: 14
+                columns: page.compactHead ? 3 : 5
+                columnSpacing: page.compactHead ? 10 : 14
+                rowSpacing: 8
 
                 // Accessibility menu
                 AbstractButton {
                     id: a11y
+                    Layout.row: 0
+                    Layout.column: 0
                     implicitWidth: a11yRow.implicitWidth + 8
                     implicitHeight: 30
                     hoverEnabled: true
                     onClicked: a11yMenu.open()
                     Accessible.name: "Options d'accessibilité"
-                    background: Rectangle { radius: 4; color: a11y.hovered ? "#BEC3C9" : "transparent" }
+                    background: Rectangle { radius: 4; color: a11y.hovered ? Style.evBarHover : "transparent" }
                     contentItem: Item {
                         Row {
                             id: a11yRow
                             anchors.centerIn: parent
                             spacing: 2
-                            Icon { name: "accessibility"; color: "#3A3F45"; size: 18; anchors.verticalCenter: parent.verticalCenter }
-                            Icon { name: "caret-down"; color: "#3A3F45"; size: 14; anchors.verticalCenter: parent.verticalCenter }
+                            Icon { name: "accessibility"; color: Style.evBarIcon; size: 18; anchors.verticalCenter: parent.verticalCenter }
+                            Icon { name: "caret-down"; color: Style.evBarIcon; size: 14; anchors.verticalCenter: parent.verticalCenter }
                         }
                     }
                     Menu {
                         id: a11yMenu
                         y: a11y.height
                         font.family: page.family
+                        palette.window: Style.evPage
+                        palette.windowText: Style.evInk
+                        palette.light: Style.examDark ? Style.evBarHover : "#E9ECEF"
+                        palette.midlight: Style.examDark ? Style.evBarPressed : "#DEE2E6"
+                        palette.mid: Style.evLine
+                        palette.dark: Style.examDark ? Style.evLine : "#ADB5BD"
                         MenuItem { text: "Texte plus grand"; enabled: Prefs.textScale < 1.6; onTriggered: Prefs.textScale = Math.min(1.6, Prefs.textScale + 0.1) }
                         MenuItem { text: "Texte plus petit"; enabled: Prefs.textScale > 0.9; onTriggered: Prefs.textScale = Math.max(0.9, Prefs.textScale - 0.1) }
                         MenuItem { text: "Taille normale"; onTriggered: Prefs.textScale = 1.0 }
+                        MenuSeparator {}
+                        MenuItem { text: Style.examDark ? "Écran clair" : "Écran sombre"; onTriggered: Prefs.examTheme = Style.examDark ? "light" : "dark" }
                         MenuSeparator {}
                         MenuItem { text: page.official ? "Abandonner l'examen" : "Quitter sans terminer"; onTriggered: quitDialog.open() }
                     }
@@ -146,6 +177,8 @@ Page {
 
                 ColumnLayout {
                     spacing: 2
+                    Layout.row: 0
+                    Layout.column: 1
                     Layout.fillWidth: true
                     Text {
                         text: User.currentCandidateName
@@ -160,7 +193,7 @@ Page {
                         text: Exam.lastSavedLabel.length > 0 ? "dernière sauvegarde " + Exam.lastSavedLabel : Exam.title
                         font.family: page.family
                         font.pixelSize: Math.round(14 * page.k)
-                        color: "#6C737B"
+                        color: Style.evBarMuted
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -169,10 +202,13 @@ Page {
                 // Remaining time (the real exam is timed; the ANFR demo is not)
                 Rectangle {
                     visible: Exam.timed
+                    Layout.row: 0
+                    Layout.column: 2
+                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                     implicitWidth: timeRow.implicitWidth + 20
                     implicitHeight: Math.round(32 * page.k)
                     radius: 4
-                    color: page.criticalTime ? "#DC3545" : page.lowTime ? "#FD7E14" : "#C6CACF"
+                    color: page.criticalTime ? "#DC3545" : page.lowTime ? "#FD7E14" : Style.evBarButton
                     Row {
                         id: timeRow
                         anchors.centerIn: parent
@@ -195,18 +231,60 @@ Page {
                     Accessible.name: "Temps restant " + App.formatDuration(page.remaining)
                 }
 
-                Text {
-                    textFormat: Text.StyledText
-                    text: "<font color='" + (Exam.answeredCount === 0 ? "#DC3545" : Exam.answeredCount < Exam.count ? "#FFC107" : "#198754") + "'>"
-                          + Exam.answeredCount + "</font> / " + Exam.count + " questions"
-                    font.family: page.family
-                    font.pixelSize: Math.round(16 * page.k)
-                    color: "#FFFFFF"
+                RowLayout {
+                    Layout.row: page.compactHead ? 1 : 0
+                    Layout.column: page.compactHead ? 0 : 3
+                    Layout.columnSpan: page.compactHead ? 2 : 1
+                    spacing: 10
+                    Text {
+                        textFormat: Text.StyledText
+                        text: "<font color='" + (Exam.answeredCount === 0 ? Style.evBad : Exam.answeredCount < Exam.count ? "#FFC107" : Style.evOk) + "'>"
+                              + Exam.answeredCount + "</font> / " + Exam.count + (page.compactHead ? "" : " questions")
+                        font.family: page.family
+                        font.pixelSize: Math.round(16 * page.k)
+                        color: "#FFFFFF"
+                    }
+                    // Shows or hides the question buttons on a narrow screen.
+                    AbstractButton {
+                        id: gridButton
+                        visible: page.gridOnDemand
+                        implicitHeight: Math.max(Style.hit, Math.round(34 * page.k))
+                        implicitWidth: gridRow.implicitWidth + 16
+                        hoverEnabled: true
+                        focusPolicy: Qt.NoFocus
+                        onClicked: page.gridOpen = !page.gridOpen
+                        Accessible.name: page.gridOpen ? "Masquer la grille des questions" : "Afficher la grille des questions"
+                        background: Rectangle { radius: 4; color: gridButton.down || page.gridOpen ? Style.evBarPressed : (gridButton.hovered ? Style.evBarHover : Style.evBarButton) }
+                        contentItem: Item {
+                            Row {
+                                id: gridRow
+                                anchors.centerIn: parent
+                                spacing: 4
+                                Text {
+                                    text: "Grille"
+                                    font.family: page.family
+                                    font.pixelSize: Math.round(15 * page.k)
+                                    color: page.ink
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Icon {
+                                    name: "caret-down"
+                                    color: page.ink
+                                    size: 14
+                                    rotation: page.gridOpen ? 180 : 0
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                        }
+                    }
                 }
 
                 AbstractButton {
                     id: finalizeButton
-                    implicitHeight: Math.round(38 * page.k)
+                    Layout.row: page.compactHead ? 1 : 0
+                    Layout.column: page.compactHead ? 2 : 4
+                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                    implicitHeight: Math.max(Style.touch ? Style.hit : 0, Math.round(38 * page.k))
                     implicitWidth: finalizeText.implicitWidth + 24
                     hoverEnabled: true
                     onClicked: finalizeDialog.open()
@@ -216,7 +294,7 @@ Page {
                     }
                     contentItem: Text {
                         id: finalizeText
-                        text: page.official ? "Finaliser l'examen »" : "Terminer »"
+                        text: page.official ? (page.compactHead ? "Finaliser »" : "Finaliser l'examen »") : "Terminer »"
                         font.family: page.family
                         font.pixelSize: Math.round(16 * page.k)
                         color: "#FFFFFF"
@@ -229,7 +307,8 @@ Page {
             // Question buttons
             Flow {
                 Layout.fillWidth: true
-                spacing: 4
+                visible: !page.gridOnDemand || page.gridOpen
+                spacing: Style.touch ? 6 : 4
                 Repeater {
                     model: Exam
                     delegate: AbstractButton {
@@ -240,19 +319,23 @@ Page {
                         required property bool pinned
                         required property int status
                         readonly property bool isCurrent: page.current === index
-                        implicitWidth: Math.max(Math.round(32 * page.k), numText.implicitWidth + 18)
-                        implicitHeight: Math.round(28 * page.k)
+                        implicitWidth: Math.max(Math.round((Style.touch ? 40 : 32) * page.k), numText.implicitWidth + 18)
+                        implicitHeight: Math.round((Style.touch ? 36 : 28) * page.k)
                         hoverEnabled: true
                         focusPolicy: Qt.NoFocus
-                        onClicked: page.jumpTo(index)
+                        onClicked: {
+                            page.jumpTo(index)
+                            if (page.gridOnDemand)
+                                page.gridOpen = false
+                        }
                         Accessible.name: "Question " + position + (selection !== 0 ? ", répondue" : "") + (pinned ? ", épinglée" : "")
                         background: Rectangle {
                             radius: 3
                             color: nb.status === 1 ? "#198754" : nb.status === 2 ? "#DC3545"
                                    : nb.selection !== 0 ? page.navGreen
-                                   : nb.hovered ? "#7C8085" : page.navGrey
+                                   : nb.hovered ? Style.evNavHover : page.navGrey
                             border.width: nb.pinned ? 3 : 1
-                            border.color: nb.pinned ? page.pinOrange : "#9EA2A7"
+                            border.color: nb.pinned ? page.pinOrange : Style.evNavEdge
                         }
                         contentItem: Text {
                             id: numText
@@ -278,7 +361,7 @@ Page {
         contentHeight: column.y + column.implicitHeight + 80
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
+        ScrollBar.vertical: ScrollBar { policy: Style.touch ? ScrollBar.AsNeeded : ScrollBar.AlwaysOn }
         onContentYChanged: page.updateCurrent()
 
         NumberAnimation on contentY {
@@ -355,7 +438,7 @@ Page {
         width: Math.min(520, page.width - 40)
         padding: 0
         Overlay.modal: Rectangle { color: "#80000000" }
-        background: Rectangle { color: "#FFFFFF"; radius: 6; border.color: "#2D000000" }
+        background: Rectangle { color: Style.evPage; radius: 6; border.color: Style.examDark ? Style.evLine : "#2D000000" }
         contentItem: ColumnLayout {
             spacing: 0
             Text {
@@ -368,7 +451,7 @@ Page {
                 color: page.ink
                 wrapMode: Text.WordWrap
             }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#DEE2E6" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: Style.evLine }
             Text {
                 Layout.fillWidth: true
                 Layout.margins: 16
@@ -379,7 +462,7 @@ Page {
                 wrapMode: Text.WordWrap
                 lineHeight: 1.25
             }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#DEE2E6" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: Style.evLine }
             RowLayout {
                 Layout.fillWidth: true
                 Layout.margins: 12

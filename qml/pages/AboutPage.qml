@@ -9,22 +9,27 @@ Page {
     property bool immersive: false
     background: Rectangle { color: Style.bg }
 
-    component Credit: RowLayout {
+    // Name and contribution side by side, or one under the other on a phone.
+    component Credit: GridLayout {
+        id: credit
         property string who: ""
         property string what: ""
         Layout.fillWidth: true
-        spacing: 16
+        columns: Style.compact ? 1 : 2
+        columnSpacing: 16
+        rowSpacing: 2
         Text {
-            text: parent.who
+            text: credit.who
             font.family: Style.family
             font.pixelSize: Style.fM
             font.bold: true
             color: Style.text
-            Layout.preferredWidth: 260
+            Layout.preferredWidth: Style.compact ? -1 : 260
+            Layout.fillWidth: Style.compact
             wrapMode: Text.WordWrap
         }
         Text {
-            text: parent.what
+            text: credit.what
             font.family: Style.family
             font.pixelSize: Style.fM
             color: Style.muted
@@ -35,6 +40,8 @@ Page {
 
     component Link: Text {
         property string url: ""
+        Layout.fillWidth: true
+        wrapMode: Text.WordWrap
         font.family: Style.family
         font.pixelSize: Style.fM
         color: Style.blue
@@ -56,20 +63,23 @@ Page {
 
         ColumnLayout {
             id: col
-            x: 48
-            y: 40
-            width: Math.min(900, parent.width - 96)
+            x: Style.margin
+            y: Style.compact ? 20 : 40
+            width: Math.min(900, parent.width - 2 * Style.margin)
             spacing: 24
 
             RowLayout {
-                spacing: 24
+                Layout.fillWidth: true
+                spacing: Style.compact ? 16 : 24
                 Image {
                     source: "qrc:/qt/qml/Exam1App/resources/icons/exam1.png"
                     sourceSize: Qt.size(96, 96)
-                    Layout.preferredWidth: 96
-                    Layout.preferredHeight: 96
+                    Layout.preferredWidth: Style.compact ? 64 : 96
+                    Layout.preferredHeight: Style.compact ? 64 : 96
+                    Layout.alignment: Qt.AlignTop
                 }
                 ColumnLayout {
+                    Layout.fillWidth: true
                     spacing: 4
                     Text {
                         text: "Exam'1 " + App.version
@@ -118,6 +128,7 @@ Page {
 
             Section {
                 Layout.fillWidth: true
+                visible: !App.mobile
                 title: "Clavier pendant l'examen"
                 Text {
                     Layout.fillWidth: true
@@ -132,7 +143,7 @@ Page {
             Section {
                 Layout.fillWidth: true
                 title: "Licences"
-                subtitle: "Police Atkinson Hyperlegible : SIL Open Font License (Braille Institute). Décompression ZIP : miniz, licence MIT. Interface : Qt 6, LGPL v3. Questions et images : propriété de leurs auteurs, utilisées avec leur accord."
+                subtitle: "Police Atkinson Hyperlegible : SIL Open Font License (Braille Institute). Décompression ZIP : miniz, licence MIT. Interface : Qt 6, LGPL v3." + (App.mobile ? " Connexions sécurisées sur Android : OpenSSL, licence Apache 2.0." : "") + " Questions et images : propriété de leurs auteurs, utilisées avec leur accord."
             }
         }
     }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Name under the launcher icon (QT_ANDROID_APP_NAME "@string/app_name" in CMakeLists.txt).
+         The file must be named strings.xml: androiddeployqt creates one otherwise. -->
+    <string name="app_name" translatable="false">Exam\'1</string>
+</resources>

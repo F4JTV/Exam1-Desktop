@@ -1,6 +1,6 @@
 ## Exam'1 {{VERSION}}
 
-Simulateur d'examen du certificat d'opérateur radioamateur (ANFR), pour Windows, macOS et Linux.
+Simulateur d'examen du certificat d'opérateur radioamateur (ANFR), pour Windows, macOS, Linux et Android.
 
 ![Écran d'accueil d'Exam'1](https://raw.githubusercontent.com/{{REPOSITORY}}/v{{VERSION}}/capture-accueil.png)
 
@@ -14,18 +14,23 @@ L'historique de toutes les versions est dans [CHANGELOG.md](https://github.com/{
 
 | Fichier | Système | État |
 |---|---|---|
-| `Exam1-{{VERSION}}-setup.exe` | Windows 10 et 11, 64 bits | testé |
+| `Exam1-{{VERSION}}-setup.exe` | Windows 10 et 11, 64 bits (installeur) | testé |
+| `Exam1_v{{VERSION}}_Windows_portable.zip` | Windows 10 et 11, 64 bits (portable, sans installation) | testé |
 | `Exam1-{{VERSION}}.dmg` | macOS 12 ou plus récent (Apple Silicon et Intel) | testé |
 | `exam1_{{VERSION}}_ubuntu24.04_amd64.deb` | Ubuntu 24.04 LTS, 64 bits | testé |
 | `exam1_{{VERSION}}_ubuntu26.04_amd64.deb` | Ubuntu 26.04 LTS, 64 bits | compilé, pas encore testé |
 | `exam1_{{VERSION}}_debian12_amd64.deb` | Debian 12, 64 bits | compilé, pas encore testé |
 | `exam1_{{VERSION}}_debian13_amd64.deb` | Debian 13, 64 bits | compilé, pas encore testé |
+| `Exam1-{{VERSION}}-x86_64.AppImage` | Autres distributions Linux 64 bits : Fedora, openSUSE, Arch, Manjaro, Linux Mint… (sans installation) | compilé, pas encore testé |
+| `Exam1-{{VERSION}}.apk` | Android 9 ou plus récent, téléphones et tablettes | testé |
 
 {{BANK}}
 
 ### Installation
 
 **Windows** : lancez `Exam1-{{VERSION}}-setup.exe`. L'installeur n'est pas signé numériquement, donc Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » : cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. L'installation est possible pour tous les utilisateurs ou pour vous seul.
+
+**Windows, version portable** : décompressez `Exam1_v{{VERSION}}_Windows_portable.zip` (clic droit, **Extraire tout…**) dans le dossier de votre choix, par exemple sur une clé USB, puis lancez `Exam1\exam1.exe` : aucune installation n'est nécessaire. Grâce au fichier `portable.txt` fourni à côté de `exam1.exe`, les candidats et résultats sont enregistrés dans le sous-dossier `userdata` : tout reste dans le dossier, qui peut passer d'un ordinateur à l'autre. Comme pour l'installeur, SmartScreen peut demander une confirmation au premier lancement.
 
 **macOS** : ouvrez `Exam1-{{VERSION}}.dmg` et glissez Exam'1 dans le dossier Applications. L'application n'est pas signée par Apple, donc macOS refuse de l'ouvrir au premier lancement. Allez dans *Réglages Système → Confidentialité et sécurité*, puis cliquez sur **Ouvrir quand même** en bas de la page. Sur macOS 14 et versions antérieures, un clic droit sur l'application puis **Ouvrir** suffit aussi.
 
@@ -37,14 +42,30 @@ sudo apt install ./exam1_{{VERSION}}_ubuntu24.04_amd64.deb
 
 `apt` installe automatiquement les bibliothèques Qt 6 de la distribution. Exam'1 apparaît ensuite dans le menu des applications.
 
+<!-- if Exam1-{{VERSION}}-x86_64.AppImage -->
+**Autres distributions Linux (AppImage)** : `Exam1-{{VERSION}}-x86_64.AppImage` contient l'application et les bibliothèques Qt qu'elle utilise, il n'y a rien à installer. Rendez le fichier exécutable (clic droit, **Propriétés**, « Autoriser l'exécution comme un programme »), puis lancez-le d'un double-clic. En ligne de commande :
+
+```bash
+chmod +x Exam1-{{VERSION}}-x86_64.AppImage
+./Exam1-{{VERSION}}-x86_64.AppImage
+```
+
+L'AppImage fonctionne sur les distributions dont la bibliothèque C (glibc) est en version 2.36 ou plus récente : Debian 12, Fedora 37, openSUSE Leap 15.6 et leurs successeurs, Arch, Manjaro, Linux Mint 22… Si le système refuse de l'ouvrir faute de FUSE, ajoutez `--appimage-extract-and-run` à la commande. Pour passer à une nouvelle version, il suffit de remplacer le fichier : les candidats et résultats sont conservés.
+<!-- end -->
+
+<!-- if Exam1-{{VERSION}}.apk -->
+**Android** : téléchargez `Exam1-{{VERSION}}.apk` sur le téléphone ou la tablette, puis ouvrez-le. Android demande d'autoriser l'installation d'applications depuis le navigateur ou le gestionnaire de fichiers utilisé : acceptez pour cette fois. Les versions suivantes s'installent de la même façon, par-dessus, sans perdre les candidats ni les résultats.
+<!-- end -->
+
 ### Vos données
 
 Les candidats, résultats et questions enregistrées se trouvent dans :
-- Windows : `%APPDATA%\Exam1\Exam1`
+- Windows : `%APPDATA%\Exam1\Exam1` ; version portable : sous-dossier `userdata`, à côté de `exam1.exe`
 - macOS : `~/Library/Application Support/Exam1/Exam1`
 - Linux : `~/.local/share/Exam1/Exam1`
+- Android : dans l'application elle-même (ils font partie de la sauvegarde Android de l'appareil)
 
-Ils sont conservés lors d'une mise à jour, et la désinstallation ne les supprime pas.
+Ils sont conservés lors d'une mise à jour. Sous Windows, macOS et Linux, la désinstallation ne les supprime pas ; sous Android, elle les efface. Pour les sauvegarder ou les passer d'un appareil à l'autre : Paramètres > Données > « Exporter mes données », puis « Importer une sauvegarde » sur l'autre appareil.
 
 ### Remerciements
 

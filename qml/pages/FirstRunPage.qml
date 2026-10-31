@@ -21,13 +21,13 @@ Page {
 
     ColumnLayout {
         anchors.centerIn: parent
-        width: Math.min(640, parent.width - 80)
+        width: Math.min(640, parent.width - 2 * Math.max(Style.margin, 24))
         spacing: 22
 
         Text {
             text: "EXAM'1"
             font.family: Style.family
-            font.pixelSize: Style.fHero
+            font.pixelSize: Style.compact ? Math.round(Style.fHero * 0.75) : Style.fHero
             font.bold: true
             font.italic: true
             color: Style.yellow
@@ -83,22 +83,25 @@ Page {
             Layout.fillWidth: true
             spacing: 12
             ActionButton {
+                width: Math.min(implicitWidth, parent.width)
                 variant: "accent"
                 iconName: "download"
                 text: "Télécharger la base (REF)"
                 onClicked: Updates.installUpdate()
             }
             ActionButton {
+                width: Math.min(implicitWidth, parent.width)
                 visible: Updates.seedAvailable
                 variant: "dark"
                 text: "Installer la base fournie"
                 onClicked: Updates.installSeed()
             }
             ActionButton {
+                width: Math.min(implicitWidth, parent.width)
                 variant: "dark"
                 iconName: "folder"
-                text: "Importer des fichiers…"
-                onClicked: folderDialog.open()
+                text: App.mobile ? "Importer une archive ZIP…" : "Importer des fichiers…"
+                onClicked: App.mobile ? fileDialog.open() : folderDialog.open()
             }
         }
         Text {
@@ -108,7 +111,8 @@ Page {
             font.family: Style.family
             font.pixelSize: Style.fS
             color: Style.slateTextMuted
-            text: "Sans Internet : choisissez un dossier contenant questions.json, series.json et questions.zip."
+            text: App.mobile ? "Sans Internet : choisissez une archive ZIP contenant questions.json, series.json et questions.zip."
+                             : "Sans Internet : choisissez un dossier contenant questions.json, series.json et questions.zip."
         }
     }
 
@@ -116,5 +120,11 @@ Page {
         id: folderDialog
         title: "Dossier contenant questions.json"
         onAccepted: Updates.importLocal(selectedFolder)
+    }
+    FileDialog {
+        id: fileDialog
+        title: "Archive de la base de questions"
+        nameFilters: ["Archive ZIP (*.zip)"]
+        onAccepted: Updates.importLocal(selectedFile)
     }
 }

@@ -8,6 +8,7 @@ import Exam1App
 Page {
     id: page
     property bool immersive: false
+    readonly property string navTitle: "Correction"   // shown in the top bar on a phone
     property int resultId: 0
     property int startAt: -1
     property string filter: "all"
@@ -69,8 +70,8 @@ Page {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 28
-            anchors.rightMargin: 28
+            anchors.leftMargin: Math.min(28, Style.margin)
+            anchors.rightMargin: Math.min(28, Style.margin)
             columns: wide ? 3 : 2
             columnSpacing: 18
             rowSpacing: 10
@@ -117,7 +118,7 @@ Page {
     // Same presentation as the exam screen (Evalbox), with the correction of every question.
     Rectangle {
         anchors.fill: parent
-        color: "#FFFFFF"
+        color: Style.evPage
 
         ListView {
             id: list
@@ -125,11 +126,11 @@ Page {
             model: page.rows
             spacing: Math.round(36 * Prefs.textScale)
             clip: true
-            topMargin: 32
+            topMargin: Style.compact ? 20 : 32
             bottomMargin: 48
             cacheBuffer: 2000
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOn }
+            ScrollBar.vertical: ScrollBar { policy: Style.touch ? ScrollBar.AsNeeded : ScrollBar.AlwaysOn }
 
             delegate: Item {
                 id: row
@@ -139,7 +140,7 @@ Page {
                 implicitHeight: block.implicitHeight
                 EvalQuestion {
                     id: block
-                    width: Math.min(1140, list.width - 64)
+                    width: Math.min(1140, list.width - 2 * Math.min(32, Style.margin))
                     anchors.horizontalCenter: parent.horizontalCenter
                     family: App.systemFontFamily
                     k: Prefs.textScale
@@ -175,7 +176,7 @@ Page {
                 text: "Aucune question dans ce filtre."
                 font.family: App.systemFontFamily
                 font.pixelSize: Math.round(18 * Prefs.textScale)
-                color: "#6C7B7C"
+                color: Style.evMuted
             }
         }
     }

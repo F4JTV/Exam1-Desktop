@@ -8,7 +8,8 @@ rem    QtDir         Qt kit, e.g. C:\Qt\6.8.0\msvc2022_64 (default: QTDIR variab
 rem                  else the most recent C:\Qt\6.*\msvc20*_64 found)
 rem    --fetch-bank  download the current question bank before packaging
 rem
-rem  Output: dist\Exam1\ (portable folder) and build-win\Exam1-<version>-setup.exe
+rem  Output: dist\Exam1\ (application folder), build-win\Exam1-<version>-setup.exe and
+rem          build-win\Exam1_v<version>_Windows_portable.zip
 rem ===========================================================================
 setlocal EnableExtensions EnableDelayedExpansion
 
@@ -87,13 +88,32 @@ if exist "%ROOT%\packaging\data\questions.json" (
     echo             Relancez avec --fetch-bank pour l'inclure.
 )
 
+rem --- Portable version ----------------------------------------------------------------------
+rem A copy of the application folder with portable.txt next to exam1.exe, so that the data stays
+rem in the folder (userdata). The installer is made from %DIST% itself, without portable.txt.
+set "PORTABLE=%ROOT%\build-win\portable"
+set "PORTABLE_ZIP=%ROOT%\build-win\Exam1_v%VERSION%_Windows_portable.zip"
+if exist "%PORTABLE%" rmdir /s /q "%PORTABLE%"
+if exist "%PORTABLE_ZIP%" del /q "%PORTABLE_ZIP%"
+xcopy "%DIST%" "%PORTABLE%\Exam1\" /e /i /q /y >nul || goto fail
+type nul > "%PORTABLE%\Exam1\portable.txt"
+rem tar.exe of Windows (bsdtar) writes standard zip files; Compress-Archive is the fallback.
+if exist "%SystemRoot%\System32\tar.exe" (
+    pushd "%PORTABLE%"
+    "%SystemRoot%\System32\tar.exe" -a -c -f "%PORTABLE_ZIP%" Exam1 || (popd & goto fail)
+    popd
+) else (
+    powershell -NoProfile -Command "Compress-Archive -Path '%PORTABLE%\Exam1' -DestinationPath '%PORTABLE_ZIP%'" || goto fail
+)
+echo Version portable : %PORTABLE_ZIP%
+
 rem --- Installer -------------------------------------------------------------------------
 set "ISCC="
 for %%I in (ISCC.exe) do set "ISCC=%%~$PATH:I"
 if "%ISCC%"=="" if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if "%ISCC%"=="" if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if "%ISCC%"=="" (
-    echo [ATTENTION] Inno Setup 6 introuvable : seul le dossier portable dist\Exam1 a ete cree.
+    echo [ATTENTION] Inno Setup 6 introuvable : pas d'installateur, seulement la version portable.
     goto done
 )
 "%ISCC%" /Q /DAppVersion=%VERSION% /DSourceDir="%DIST%" /DOutputDir="%ROOT%\build-win" "%ROOT%\packaging\windows\exam1.iss" || goto fail
@@ -101,8 +121,7 @@ echo.
 echo Installateur : %ROOT%\build-win\Exam1-%VERSION%-setup.exe
 
 :done
-echo Dossier portable : %DIST%
-echo   (ajoutez un fichier portable.txt a cote de exam1.exe pour une cle USB)
+echo Dossier de l'application : %DIST%
 popd
 endlocal
 exit /b 0

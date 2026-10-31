@@ -7,6 +7,7 @@ import Exam1App
 Page {
     id: page
     property bool immersive: false
+    readonly property string navTitle: "Résultat"   // shown in the top bar on a phone
     background: Rectangle { color: Style.bg }
 
     readonly property var rows: Exam.snapshot()
@@ -44,15 +45,15 @@ Page {
 
         ColumnLayout {
             id: content
-            x: 48
-            y: 40
-            width: Math.min(1100, parent.width - 96)
+            x: Style.margin
+            y: Style.compact ? 20 : 40
+            width: Math.min(1100, parent.width - 2 * Style.margin)
             spacing: 28
 
             // Verdict ---------------------------------------------------------------------------------
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: verdictCol.implicitHeight + 56
+                implicitHeight: verdictCol.implicitHeight + (Style.compact ? 40 : 56)
                 radius: Style.r2
                 color: Style.surface
                 border.color: Style.line
@@ -67,8 +68,8 @@ Page {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 40
-                    anchors.rightMargin: 40
+                    anchors.leftMargin: Style.compact ? 22 : 40
+                    anchors.rightMargin: Style.compact ? 16 : 40
                     spacing: 18
 
                     GridLayout {
@@ -112,7 +113,7 @@ Page {
                     // The marks of the two tests side by side, one under the other when they do not fit.
                     Flow {
                         Layout.fillWidth: true
-                        spacing: 40
+                        spacing: Style.compact ? 28 : 40
                         Repeater {
                             model: page.partList
                             delegate: ColumnLayout {
@@ -163,17 +164,20 @@ Page {
                 Layout.fillWidth: true
                 spacing: 12
                 ActionButton {
+                    width: Math.min(implicitWidth, parent.width)
                     text: "Voir la correction"
                     iconName: "eye"
                     onClicked: Nav.window.open("CorrectionPage")
                 }
                 ActionButton {
+                    width: Math.min(implicitWidth, parent.width)
                     variant: "secondary"
                     text: page.official ? "Repasser un examen blanc" : "Nouvelle session"
                     iconName: "refresh"
                     onClicked: page.restart()
                 }
                 ActionButton {
+                    width: Math.min(implicitWidth, parent.width)
                     variant: "ghost"
                     text: "Accueil"
                     iconName: "home"
@@ -191,6 +195,8 @@ Page {
                     font.pixelSize: Style.fXl
                     font.bold: true
                     color: Style.text
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
                 }
                 Flow {
                     Layout.fillWidth: true
@@ -225,7 +231,8 @@ Page {
                         }
                     }
                 }
-                RowLayout {
+                Flow {
+                    Layout.fillWidth: true
                     spacing: 18
                     Repeater {
                         model: [
@@ -264,7 +271,7 @@ Page {
                             Layout.preferredWidth: 420
                         }
                         Rectangle {
-                            Layout.preferredWidth: 220
+                            Layout.preferredWidth: Style.compact ? 72 : 220
                             height: 10
                             radius: 5
                             color: Style.redSoft

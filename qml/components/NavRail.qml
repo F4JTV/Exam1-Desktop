@@ -24,7 +24,7 @@ Rectangle {
     ]
     readonly property var toolItems: [
         { key: "candidates", icon: "users", label: "Candidats" },
-        { key: "update", icon: "refresh", label: "Mise à jour" },
+        { key: "update", icon: "refresh", label: "Mises à jour" },
         { key: "settings", icon: "settings", label: "Paramètres" },
         { key: "about", icon: "info", label: "À propos" }
     ]
@@ -34,7 +34,7 @@ Rectangle {
         required property var modelData
         readonly property bool active: rail.current === modelData.key
         Layout.fillWidth: true
-        implicitHeight: Math.max(42, label.implicitHeight + 12)
+        implicitHeight: Math.max(Style.touch ? 48 : 42, label.implicitHeight + 12)
         hoverEnabled: true
         onClicked: rail.navigate(modelData.key)
         Accessible.name: modelData.label
@@ -74,7 +74,7 @@ Rectangle {
                 elide: Text.ElideRight
             }
             Rectangle {
-                visible: item.modelData.key === "update" && Updates.updateAvailable
+                visible: item.modelData.key === "update" && (Updates.updateAvailable || AppUpdate.available)
                 width: 9
                 height: 9
                 radius: 5

@@ -38,9 +38,9 @@ Page {
 
         ColumnLayout {
             id: col
-            x: 48
-            y: 40
-            width: Math.min(1240, parent.width - 96)
+            x: Style.margin
+            y: Style.compact ? 20 : 40
+            width: Math.min(1240, parent.width - 2 * Style.margin)
             spacing: 24
 
             PageHeader {
@@ -54,6 +54,7 @@ Page {
                 Layout.fillWidth: true
                 spacing: 24
                 SegmentedChoice {
+                    width: Math.min(naturalWidth, parent.width)
                     value: page.type
                     options: [
                         { value: "legislation", label: "Réglementation" },
