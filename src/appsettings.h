@@ -23,6 +23,10 @@ class AppSettings : public QObject
     Q_PROPERTY(int trainingMinutes READ trainingMinutes WRITE setTrainingMinutes NOTIFY changed)
     Q_PROPERTY(bool trainingInstant READ trainingInstant WRITE setTrainingInstant NOTIFY changed)
     Q_PROPERTY(QVariantList trainingThemes READ trainingThemes WRITE setTrainingThemes NOTIFY changed)
+    Q_PROPERTY(bool autoCheckApp READ autoCheckApp WRITE setAutoCheckApp NOTIFY changed)
+    Q_PROPERTY(QString skippedAppVersion READ skippedAppVersion WRITE setSkippedAppVersion NOTIFY changed)
+    // Exam screen: "light" (white, like the ANFR exam) or "dark".
+    Q_PROPERTY(QString examTheme READ examTheme WRITE setExamTheme NOTIFY changed)
 
 public:
     explicit AppSettings(QObject *parent = nullptr);
@@ -61,6 +65,16 @@ public:
     void setTrainingInstant(bool v);
     QVariantList trainingThemes() const;
     void setTrainingThemes(const QVariantList &v);
+    // New versions of the application itself (GitHub releases), checked at start-up.
+    bool autoCheckApp() const;
+    void setAutoCheckApp(bool v);
+    // Version whose announcement on the home screen was dismissed ("Plus tard").
+    QString skippedAppVersion() const;
+    void setSkippedAppVersion(const QString &v);
+    // Exam and correction screens: "light" (default, white as the ANFR's Evalbox) or "app"
+    // (dark when the application uses its dark theme).
+    QString examTheme() const;
+    void setExamTheme(const QString &v);
 
     Q_INVOKABLE void resetUpdateBaseUrl() { setUpdateBaseUrl(defaultUpdateBaseUrl()); }
 

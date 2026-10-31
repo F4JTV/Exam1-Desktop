@@ -56,11 +56,22 @@ Updater::~Updater()
 
 QString Updater::findInDir(const QString &dir, const QString &name)
 {
+    if (dir.isEmpty())
+        return QString();
+    // Exact name first: also works in the Android package ("assets:/data").
+    const QString exact = QDir(dir).filePath(name);
+    if (QFileInfo(exact).isFile())
+        return isAndroidAsset(exact) ? exact : QFileInfo(exact).absoluteFilePath();
     const QFileInfoList files = QDir(dir).entryInfoList(QDir::Files);
     for (const QFileInfo &fi : files)
         if (fi.fileName().compare(name, Qt::CaseInsensitive) == 0)
-            return fi.absoluteFilePath();
+            return isAndroidAsset(dir) ? QDir(dir).filePath(fi.fileName()) : fi.absoluteFilePath();
     return QString();
+}
+
+bool Updater::isAndroidAsset(const QString &path)
+{
+    return path.startsWith(QLatin1String("assets:"));
 }
 
 QString Updater::findSeedDir()
@@ -69,6 +80,9 @@ QString Updater::findSeedDir()
     const QString env = qEnvironmentVariable("EXAM1_DATA_DIR");
     if (!env.isEmpty())
         candidates << env;
+#ifdef Q_OS_ANDROID
+    candidates << QStringLiteral("assets:/data");   // packaging/data, copied into the APK
+#endif
     const QString appDir = QCoreApplication::applicationDirPath();
     candidates << QDir(appDir).filePath(QStringLiteral("data"))
                << QDir(appDir).filePath(QStringLiteral("../Resources/data"))    // macOS: Exam1.app/Contents/Resources
@@ -76,7 +90,7 @@ QString Updater::findSeedDir()
                << QStringLiteral("/usr/share/exam1/data");
     for (const QString &c : candidates)
         if (!findInDir(c, kQuestions).isEmpty())
-            return QDir(c).absolutePath();
+            return isAndroidAsset(c) ? c : QDir(c).absolutePath();
     return QString();
 }
 
@@ -281,13 +295,18 @@ void Updater::importLocal(const QUrl &location)
 {
     if (busy())
         return;
-    QString path = location.isLocalFile() ? location.toLocalFile() : location.toString();
+    // On Android the document picker gives a "content://" address, without a file name or folder:
+    // the chosen file is read as an archive.
+    const bool document = location.scheme() == QLatin1String("content");
+    QString path = location.isLocalFile() ? location.toLocalFile()
+                                          : location.toString(document ? QUrl::FullyEncoded : QUrl::PrettyDecoded);
     QFileInfo fi(path);
-    const QString origin = QDir::toNativeSeparators(fi.absoluteFilePath());
-    QString dir = fi.isDir() ? fi.absoluteFilePath() : fi.absolutePath();
+    const QString origin = document ? QStringLiteral("archive choisie sur l'appareil") : QDir::toNativeSeparators(fi.absoluteFilePath());
+    QString dir = document ? QString() : (fi.isDir() ? fi.absoluteFilePath() : fi.absolutePath());
 
     // A single archive holding questions.json (+ series.json, questions.zip or images) is accepted too.
-    if (fi.isFile() && fi.suffix().compare(QLatin1String("zip"), Qt::CaseInsensitive) == 0 && findInDir(dir, kQuestions).isEmpty()) {
+    if (document
+        || (fi.isFile() && fi.suffix().compare(QLatin1String("zip"), Qt::CaseInsensitive) == 0 && findInDir(dir, kQuestions).isEmpty())) {
         m_tmp = std::make_unique<QTemporaryDir>();
         QFile zf(path);
         if (!zf.open(QIODevice::ReadOnly)) {

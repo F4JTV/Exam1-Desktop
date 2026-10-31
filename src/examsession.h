@@ -9,6 +9,7 @@
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QHash>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
@@ -129,6 +130,14 @@ public:
     Q_INVOKABLE bool startSeries(const QString &name, bool timed, bool instantCorrection);
     Q_INVOKABLE bool startReview(const QString &source, int questionCount, bool instantCorrection);
     Q_INVOKABLE int reviewAvailable(const QString &source) const;
+    // Success per theme of a category ("technique" or "reglementation"), from all the answers given:
+    // id, name, questions (in the bank), seen (asked at least once), answers, correct,
+    // rate (0 to 1, -1 before any answer), weak (enough answers and a rate under the threshold).
+    Q_INVOKABLE QVariantList themeStats(const QString &category) const;
+    // The weak themes, the weakest first.
+    QList<int> weakThemes() const;
+    static constexpr int weakMinAnswers = 5;
+    static constexpr double weakRate = 0.75;
     Q_INVOKABLE bool resumeSaved();
     Q_INVOKABLE void discardSaved();
 
@@ -143,6 +152,8 @@ public:
     Q_INVOKABLE QVariantList snapshot() const;   // all rows as maps (correction page)
     Q_INVOKABLE void finalize();
     Q_INVOKABLE void abandon();
+    // Writes the exam in progress to disk now (application sent to the background).
+    void saveProgress();
 
 signals:
     void stateChanged();
@@ -172,7 +183,9 @@ private:
 
     bool begin(const QVector<int> &nums, const QString &mode, const QString &category, const QString &title,
                const QString &subtitle, int durationSeconds, bool instant, const QVector<Part> &parts = {});
-    QVector<int> drawFromThemes(const QList<int> &themes, int total) const;
+    // An even share of `total` questions from each theme. With `rank`, the questions of lower
+    // rank come first in each theme instead of the usual draw.
+    QVector<int> drawFromThemes(const QList<int> &themes, int total, const QHash<int, int> *rank = nullptr) const;
     QVector<int> pick(QVector<int> pool, int n) const;
     int displayCorrect(const Item &it) const;
     Status statusOf(const Item &it) const;

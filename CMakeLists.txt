@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 # The version is set here only: the application, the Windows, macOS and Linux packages,
 # the GitHub release (tag v<version>) and its notes (CHANGELOG.md) all follow it.
 project(Exam1
-    VERSION 4.0.2
+    VERSION 4.1.0
     DESCRIPTION "French amateur radio licence exam trainer"
     HOMEPAGE_URL "https://f6kgl-f5kff.fr/exam1/"
     LANGUAGES C CXX)
@@ -14,6 +14,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Qt 6.4 is the version shipped by Ubuntu 24.04; newer Qt 6 releases work as well.
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Sql Network Svg)
 qt_standard_project_setup()
+
+if(ANDROID AND Qt6_VERSION VERSION_LESS 6.9)
+    # Android 15 and later draw the application under the system bars: Qt 6.9 gives their size.
+    message(FATAL_ERROR "The Android package needs Qt 6.9 or later (found Qt ${Qt6_VERSION}).")
+endif()
 
 # --- miniz (MIT) : ZIP reading for the image archive ------------------------------------
 add_library(miniz STATIC third_party/miniz/miniz.c)
@@ -31,6 +36,7 @@ qt_add_executable(exam1 WIN32 MACOSX_BUNDLE
     src/main.cpp
     src/appinfo.cpp src/appinfo.h
     src/appsettings.cpp src/appsettings.h
+    src/appupdate.cpp src/appupdate.h
     src/bankimporter.cpp src/bankimporter.h
     src/bankstore.cpp src/bankstore.h
     src/browsermodel.cpp src/browsermodel.h
@@ -65,7 +71,9 @@ if(APPLE)
         MACOSX_BUNDLE_COPYRIGHT "GNU GPL v3")
 endif()
 
-target_compile_definitions(exam1 PRIVATE EXAM1_VERSION="${PROJECT_VERSION}")
+# GitHub repository whose releases announce new versions of the application (src/appupdate.cpp).
+set(EXAM1_RELEASES_REPO "F4JTV/Exam1-Desktop" CACHE STRING "GitHub repository (owner/name) of the releases")
+target_compile_definitions(exam1 PRIVATE EXAM1_VERSION="${PROJECT_VERSION}" EXAM1_RELEASES_REPO="${EXAM1_RELEASES_REPO}")
 if(MSVC)
     # Sources contain French text in UTF-8.
     target_compile_options(exam1 PRIVATE /utf-8)
@@ -101,6 +109,7 @@ qt_add_qml_module(exam1
         qml/components/SegmentedChoice.qml
         qml/components/Spinner.qml
         qml/components/TextField2.qml
+        qml/components/TopBar.qml
         qml/pages/AboutPage.qml
         qml/pages/BrowserPage.qml
         qml/pages/CandidatesPage.qml
@@ -168,11 +177,68 @@ else()
     set_target_properties(exam1 PROPERTIES OUTPUT_NAME exam1)
 endif()
 
-include(GNUInstallDirs)
-install(TARGETS exam1
-    BUNDLE DESTINATION .
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-if(UNIX AND NOT APPLE)
+# --- Android (see packaging/android/build_android.sh) ---------------------------------
+if(ANDROID)
+    # Android installs an update only over an older version: the version number grows with each
+    # release, 4.1.0 gives 40100. A package rebuilt for the same version can be given a higher
+    # one with -DEXAM1_ANDROID_VERSION_CODE=40101 (and the next release must then go above it).
+    if(NOT EXAM1_ANDROID_VERSION_CODE)
+        math(EXPR EXAM1_ANDROID_VERSION_CODE
+             "${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}")
+    endif()
+
+    # Files of the package: launcher icon and name (packaging/android/res), and the question bank
+    # of packaging/data (filled by packaging/fetch_bank.sh) as assets, installed at first launch.
+    set(EXAM1_ANDROID_PACKAGE_DIR "${CMAKE_CURRENT_BINARY_DIR}/android-package")
+    if(NOT QT_IS_ANDROID_MULTI_ABI_EXTERNAL_PROJECT)
+        file(REMOVE_RECURSE "${EXAM1_ANDROID_PACKAGE_DIR}")
+        file(COPY packaging/android/res DESTINATION "${EXAM1_ANDROID_PACKAGE_DIR}")
+        set(EXAM1_BANK_FILES questions.json series.json questions.zip)
+        foreach(bank_file IN LISTS EXAM1_BANK_FILES)
+            if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/packaging/data/${bank_file}")
+                file(COPY "packaging/data/${bank_file}" DESTINATION "${EXAM1_ANDROID_PACKAGE_DIR}/assets/data")
+            endif()
+        endforeach()
+        if(NOT EXISTS "${EXAM1_ANDROID_PACKAGE_DIR}/assets/data/questions.json")
+            message(WARNING "No question bank in packaging/data: the application will download it at first launch "
+                            "(run packaging/fetch_bank.sh to bundle it).")
+        endif()
+    endif()
+
+    # Application ID: it cannot change once the application is published (another ID is another
+    # application), and updates must come with the same ID and the same signing key.
+    set(EXAM1_ANDROID_PACKAGE_NAME "io.github.f4jtv.exam1" CACHE STRING "Android application ID")
+
+    set_target_properties(exam1 PROPERTIES
+        QT_ANDROID_PACKAGE_NAME "${EXAM1_ANDROID_PACKAGE_NAME}"
+        QT_ANDROID_APP_NAME "@string/app_name"
+        QT_ANDROID_APP_ICON "@mipmap/ic_launcher"
+        QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
+        QT_ANDROID_VERSION_CODE "${EXAM1_ANDROID_VERSION_CODE}"
+        QT_ANDROID_MIN_SDK_VERSION 28      # Android 9, the oldest supported by Qt 6.9 and later
+        QT_ANDROID_TARGET_SDK_VERSION 36   # Android 16
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${EXAM1_ANDROID_PACKAGE_DIR}")
+
+    # HTTPS (question bank updates from the REF server) needs OpenSSL, which Android does not provide
+    # to applications: prebuilt libraries from https://github.com/KDAB/android_openssl.
+    set(EXAM1_ANDROID_OPENSSL "${CMAKE_CURRENT_SOURCE_DIR}/third_party/android_openssl" CACHE PATH
+        "Clone of https://github.com/KDAB/android_openssl")
+    if(EXISTS "${EXAM1_ANDROID_OPENSSL}/android_openssl.cmake")
+        include("${EXAM1_ANDROID_OPENSSL}/android_openssl.cmake")
+        add_android_openssl_libraries(exam1)
+    else()
+        message(WARNING "OpenSSL for Android not found in ${EXAM1_ANDROID_OPENSSL}: "
+                        "question bank updates over HTTPS will not work.")
+    endif()
+endif()
+
+if(NOT ANDROID)
+    include(GNUInstallDirs)
+    install(TARGETS exam1
+        BUNDLE DESTINATION .
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+if(UNIX AND NOT APPLE AND NOT ANDROID)
     install(FILES packaging/linux/exam1.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
     install(FILES resources/icons/exam1.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
     install(FILES packaging/linux/exam1.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)

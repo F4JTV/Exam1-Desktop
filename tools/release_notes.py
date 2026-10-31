@@ -9,6 +9,11 @@ The version is the one of CMakeLists.txt, like everywhere else. Used by
 .github/workflows/release.yml, and by hand to preview the notes:
     python3 tools/release_notes.py --bank packaging/data -o notes.md
     python3 tools/release_notes.py --check      # CHANGELOG.md has a section for the version
+
+With --dist <folder of the packages>, the rows of the downloads table naming a package that is
+not in the folder are left out (e.g. a Linux distribution whose build failed), and so are the
+parts of notes.md.in between "<!-- if <file name> -->" and "<!-- end -->" for such a package.
+--expect <file name> keeps a package that is attached by hand afterwards (the Android APK).
 """
 import argparse
 import json
@@ -78,12 +83,38 @@ def bank_text(folder) -> str:
             "sans connexion Internet ; l'application vérifie ensuite elle-même les nouvelles versions de la base.")
 
 
+def keep_available(notes: str, dist: Path, expected=()) -> str:
+    """Leaves out what refers to packages missing from dist (see the module docstring)."""
+    present = {f.name for f in dist.iterdir()} if dist.is_dir() else set()
+    present.update(expected)
+    out, skipping = [], False
+    for line in notes.splitlines():
+        block = re.match(r"\s*<!-- if (\S+) -->\s*$", line)
+        if block:
+            skipping = block.group(1) not in present
+            continue
+        if re.match(r"\s*<!-- end -->\s*$", line):
+            skipping = False
+            continue
+        if skipping:
+            continue
+        row = re.match(r"\|\s*`([^`]+)`", line)
+        if row and "." in row.group(1) and row.group(1) not in present:
+            continue
+        out.append(line)
+    text = "\n".join(out) + "\n"
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--version", help="default: VERSION of CMakeLists.txt")
     ap.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", "OWNER/REPOSITORY"),
                     help="owner/name of the GitHub repository (default: GITHUB_REPOSITORY)")
     ap.add_argument("--bank", help="folder with the bundled questions.json and series.json")
+    ap.add_argument("--dist", type=Path, help="folder of the packages: leaves out those that are missing")
+    ap.add_argument("--expect", action="append", default=[], metavar="FILE",
+                    help="package attached by hand afterwards, kept with --dist (repeatable)")
     ap.add_argument("--check", action="store_true", help="only check that CHANGELOG.md has a section for the version")
     ap.add_argument("-o", "--output", type=Path)
     args = ap.parse_args()
@@ -100,6 +131,10 @@ def main():
     for key, value in {"CHANGES": changes, "BANK": bank_text(args.bank),
                        "VERSION": version, "REPOSITORY": args.repository}.items():
         notes = notes.replace("{{" + key + "}}", value)
+    if args.dist:
+        notes = keep_available(notes, args.dist, args.expect)
+    else:
+        notes = re.sub(r"[ \t]*<!-- (if \S+|end) -->[ \t]*\n", "", notes)
     left = re.findall(r"\{\{\w+\}\}", notes)
     if left:
         sys.exit(f"Unknown placeholders in notes.md.in: {', '.join(sorted(set(left)))}")

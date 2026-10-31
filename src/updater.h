@@ -86,6 +86,7 @@ private:
                      const QString &label, double from);
     static QString findSeedDir();
     static QString findInDir(const QString &dir, const QString &name);
+    static bool isAndroidAsset(const QString &path);
 
     BankStore *m_bank;
     AppSettings *m_settings;

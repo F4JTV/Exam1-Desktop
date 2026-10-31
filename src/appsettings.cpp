@@ -82,3 +82,16 @@ QString AppSettings::questionNumbers() const
     return v == QLatin1String("always") || v == QLatin1String("never") ? v : QStringLiteral("training");
 }
 void AppSettings::setQuestionNumbers(const QString &v) { put(QStringLiteral("ui/questionNumbers"), v); }
+
+bool AppSettings::autoCheckApp() const { return m_s.value(QStringLiteral("update/checkApp"), true).toBool(); }
+void AppSettings::setAutoCheckApp(bool v) { put(QStringLiteral("update/checkApp"), v); }
+
+QString AppSettings::skippedAppVersion() const { return m_s.value(QStringLiteral("update/skippedApp")).toString(); }
+void AppSettings::setSkippedAppVersion(const QString &v) { put(QStringLiteral("update/skippedApp"), v); }
+
+QString AppSettings::examTheme() const
+{
+    const QString v = m_s.value(QStringLiteral("ui/examTheme"), QStringLiteral("light")).toString();
+    return v == QLatin1String("dark") ? v : QStringLiteral("light");
+}
+void AppSettings::setExamTheme(const QString &v) { put(QStringLiteral("ui/examTheme"), v); }

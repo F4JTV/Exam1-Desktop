@@ -18,6 +18,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
+#include <QSet>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -250,13 +251,18 @@ ImportResult run(const ImportSource &source, const QString &banksRoot, const Pro
     };
 
     // 4. Images -------------------------------------------------------------------
+    // Only the pictures of the questions in the file are kept: the REF archive also holds those of
+    // withdrawn questions (131 of 3,092 in the version of 30 September 2026), which nothing shows.
+    QSet<int> questionNums;
+    for (const ParsedQuestion &q : parsed)
+        questionNums.insert(q.num);
     QHash<int, QString> imageByNum;
     const QString imagesOut = bdir.filePath(imagesFolderName());
     auto storeImage = [&](const QString &entryName, const QByteArray &bytes) -> bool {
         int key = -1;
         const QString name = normalisedImageName(entryName, &key);
-        if (name.isEmpty())
-            return true; // not a question image: ignored
+        if (name.isEmpty() || !questionNums.contains(key))
+            return true; // not the picture of a question of the bank: ignored
         QFile out(QDir(imagesOut).filePath(name));
         if (!out.open(QIODevice::WriteOnly) || out.write(bytes) != bytes.size())
             return false;
@@ -282,9 +288,9 @@ ImportResult run(const ImportSource &source, const QString &banksRoot, const Pro
             if (!mz_zip_reader_file_stat(&zip, i, &st) || st.m_is_directory)
                 continue;
             const QString entryName = QString::fromUtf8(st.m_filename);
-            int dummy = 0;
-            if (normalisedImageName(entryName, &dummy).isEmpty())
-                continue;
+            int key = -1;
+            if (normalisedImageName(entryName, &key).isEmpty() || !questionNums.contains(key))
+                continue; // not extracted at all
             size_t size = 0;
             void *p = mz_zip_reader_extract_to_heap(&zip, i, &size, 0);
             if (!p) {
@@ -310,7 +316,7 @@ ImportResult run(const ImportSource &source, const QString &banksRoot, const Pro
             for (const QFileInfo &fi : files) {
                 int key = -1;
                 const QString name = normalisedImageName(fi.fileName(), &key);
-                if (!name.isEmpty() && QFile::copy(fi.absoluteFilePath(), QDir(imagesOut).filePath(name))) {
+                if (!name.isEmpty() && questionNums.contains(key) && QFile::copy(fi.absoluteFilePath(), QDir(imagesOut).filePath(name))) {
                     if (!imageByNum.contains(key) || name.endsWith(QLatin1String(".png")))
                         imageByNum.insert(key, name);
                 }

@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Draws the Android launcher icons from the design of resources/icons/exam1.png ("E'1" over an
+answer sheet, on slate). Requires Pillow.
+
+Writes:
+  packaging/android/res/mipmap-anydpi-v26/ic_launcher.xml   adaptive icon (Android 8 and later)
+  packaging/android/res/mipmap-<density>/ic_launcher_foreground.png, ic_launcher_monochrome.png
+  packaging/android/res/mipmap-<density>/ic_launcher.png    classic icon
+  packaging/android/res/values/ic_launcher_background.xml   background colour
+
+Usage: python3 tools/make_android_icons.py
+"""
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+
+ROOT = Path(__file__).resolve().parent.parent
+FONT = ROOT / "resources/fonts/AtkinsonHyperlegible-BoldItalic.ttf"
+RES = ROOT / "packaging/android/res"
+
+SLATE = (29, 39, 51, 255)
+YELLOW = (255, 212, 0, 255)
+SHEET = (255, 254, 206, 255)
+LINE = (190, 193, 196, 255)
+SHADOW = (140, 144, 150, 255)
+WHITE = (255, 255, 255, 255)
+
+SS = 4  # supersampling factor
+
+# Density buckets: scale factor relative to mdpi (1 dp = 1 px).
+DENSITIES = {"mdpi": 1.0, "hdpi": 1.5, "xhdpi": 2.0, "xxhdpi": 3.0, "xxxhdpi": 4.0}
+
+# The 256 px design: rounded body from 10 to 246, the motif (text and sheet) inside it.
+BODY = (10, 10, 246, 246)
+BODY_RADIUS = 51
+MOTIF_CENTER = (128.0, 126.5)   # centre of the box around "E'1" and the sheet
+MOTIF_REACH = 118.0             # distance from that centre to the farthest corner of the sheet
+
+
+class Mapper:
+    """Maps coordinates of the 256 px design onto a canvas: p = origin + (v - ref) * k."""
+
+    def __init__(self, k, ox, oy, ref=(0.0, 0.0)):
+        self.k, self.ox, self.oy, self.ref = k, ox, oy, ref
+
+    def x(self, v):
+        return self.ox + (v - self.ref[0]) * self.k
+
+    def y(self, v):
+        return self.oy + (v - self.ref[1]) * self.k
+
+
+def draw_motif(img, m, mono=False):
+    """ "E'1" with its grey shadow, and the answer sheet with three lines."""
+    d = ImageDraw.Draw(img)
+    font = ImageFont.truetype(str(FONT), max(1, round(106 * m.k)))
+    bb = d.textbbox((0, 0), "E'1", font=font)
+    tx, ty = m.x(57) - bb[0], m.y(38) - bb[1]
+    if not mono:
+        shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        ImageDraw.Draw(shadow).text((tx + 4 * m.k, ty + 4 * m.k), "E'1", font=font, fill=SHADOW)
+        img.alpha_composite(shadow)
+        d = ImageDraw.Draw(img)
+    d.text((tx, ty), "E'1", font=font, fill=WHITE if mono else YELLOW)
+
+    d.rounded_rectangle((m.x(43), m.y(141), m.x(213), m.y(215)), radius=7 * m.k, fill=WHITE if mono else SHEET)
+    for yy, x_end in ((162.5, 187), (177.5, 162), (192.5, 174)):
+        h = 6 * m.k
+        box = (m.x(58), m.y(yy) - h / 2, m.x(x_end), m.y(yy) + h / 2)
+        if mono:
+            # Lines cut out of the sheet: the system tints the opaque parts only.
+            hole = Image.new("L", img.size, 0)
+            ImageDraw.Draw(hole).rounded_rectangle(box, radius=h / 2, fill=255)
+            alpha = img.getchannel("A")
+            alpha.paste(0, mask=hole)
+            img.putalpha(alpha)
+            d = ImageDraw.Draw(img)
+        else:
+            d.rounded_rectangle(box, radius=h / 2, fill=LINE)
+
+
+def adaptive_layer(size_px, mono=False):
+    """Foreground of the adaptive icon: 108 dp square, motif inside the 66 dp safe circle."""
+    canvas = size_px * SS
+    img = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    dp = canvas / 108.0
+    k = 34.0 * dp / MOTIF_REACH
+    draw_motif(img, Mapper(k, canvas / 2, canvas / 2, MOTIF_CENTER), mono)
+    return img.resize((size_px, size_px), Image.LANCZOS)
+
+
+def classic_icon(size_px):
+    """Classic launcher icon: the rounded slate body with the motif, 48 dp with 2 dp margins."""
+    canvas = size_px * SS
+    img = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    margin = canvas * 2 / 48
+    k = (canvas - 2 * margin) / (BODY[2] - BODY[0])
+    m = Mapper(k, margin, margin, (BODY[0], BODY[1]))
+    ImageDraw.Draw(img).rounded_rectangle((m.x(BODY[0]), m.y(BODY[1]), m.x(BODY[2]), m.y(BODY[3])),
+                                          radius=BODY_RADIUS * k, fill=SLATE)
+    draw_motif(img, m)
+    return img.resize((size_px, size_px), Image.LANCZOS)
+
+
+def main():
+    written = []
+    for name, f in DENSITIES.items():
+        folder = RES / f"mipmap-{name}"
+        folder.mkdir(parents=True, exist_ok=True)
+        for file, img in (("ic_launcher_foreground.png", adaptive_layer(round(108 * f))),
+                          ("ic_launcher_monochrome.png", adaptive_layer(round(108 * f), mono=True)),
+                          ("ic_launcher.png", classic_icon(round(48 * f)))):
+            img.save(folder / file, optimize=True)
+            written.append(folder / file)
+
+    anydpi = RES / "mipmap-anydpi-v26"
+    anydpi.mkdir(parents=True, exist_ok=True)
+    (anydpi / "ic_launcher.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<!-- Generated by tools/make_android_icons.py -->\n'
+        '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+        '    <background android:drawable="@color/ic_launcher_background"/>\n'
+        '    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n'
+        '    <monochrome android:drawable="@mipmap/ic_launcher_monochrome"/>\n'
+        '</adaptive-icon>\n', encoding="utf-8")
+    written.append(anydpi / "ic_launcher.xml")
+
+    values = RES / "values"
+    values.mkdir(parents=True, exist_ok=True)
+    (values / "ic_launcher_background.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<!-- Generated by tools/make_android_icons.py -->\n'
+        '<resources>\n'
+        '    <color name="ic_launcher_background">#1D2733</color>\n'
+        '</resources>\n', encoding="utf-8")
+    written.append(values / "ic_launcher_background.xml")
+
+    for p in written:
+        print(f"Written {p.relative_to(ROOT)}")
+
+
+if __name__ == "__main__":
+    main()

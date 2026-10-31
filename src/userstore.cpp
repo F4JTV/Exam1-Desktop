@@ -1,12 +1,15 @@
 #include "userstore.h"
 
+#include <QDate>
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocale>
 #include <QSettings>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -15,18 +18,25 @@
 UserStore::UserStore(const QString &dbPath, QObject *parent)
     : QObject(parent)
     , m_connection(QStringLiteral("userdata"))
+    , m_path(dbPath)
 {
     QDir().mkpath(QFileInfo(dbPath).absolutePath());
     m_db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connection);
     m_db.setDatabaseName(dbPath);
+    open();
+}
+
+bool UserStore::open()
+{
     if (!m_db.open()) {
-        qWarning() << "Cannot open user database" << dbPath << m_db.lastError().text();
-        return;
+        qWarning() << "Cannot open user database" << m_path << m_db.lastError().text();
+        return false;
     }
     ensureSchema();
     m_current = QSettings().value(QStringLiteral("candidate/current"), 0).toInt();
     ensureCandidate();
     loadSaved();
+    return true;
 }
 
 UserStore::~UserStore()
@@ -55,6 +65,64 @@ void UserStore::ensureSchema()
     for (const QString &s : ddl)
         if (!q.exec(s))
             qWarning() << "User schema error" << q.lastError().text();
+
+    // Version 1 (Exam'1 4.1.0): spaced repetition of the wrong answers. The questions whose last
+    // answer was wrong, the former "Mes erreurs" list, are to be reviewed from today.
+    int version = 0;
+    if (q.exec(QStringLiteral("PRAGMA user_version")) && q.next())
+        version = q.value(0).toInt();
+    if (version < 1) {
+        m_db.transaction();
+        q.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS review(candidate INTEGER NOT NULL, num INTEGER NOT NULL,"
+                              " box INTEGER NOT NULL, due TEXT NOT NULL, PRIMARY KEY(candidate, num))"));
+        q.prepare(QStringLiteral("INSERT OR IGNORE INTO review(candidate, num, box, due) SELECT candidate, num, 0, ? FROM asked WHERE last_ok = 0"));
+        q.addBindValue(QDate::currentDate().toString(Qt::ISODate));
+        if (!q.exec())
+            qWarning() << "User schema error" << q.lastError().text();
+        q.exec(QStringLiteral("PRAGMA user_version = 1"));
+        m_db.commit();
+    }
+}
+
+int UserStore::reviewInterval(int box)
+{
+    static const int days[] = {0, 1, 3, 7};
+    return box >= 0 && box < 4 ? days[box] : 0;
+}
+
+void UserStore::updateReview(int num, bool right, const QString &today)
+{
+    QSqlQuery q(m_db);
+    if (!right) {
+        q.prepare(QStringLiteral("INSERT INTO review(candidate, num, box, due) VALUES(?,?,0,?)"
+                                 " ON CONFLICT(candidate, num) DO UPDATE SET box = 0, due = excluded.due"));
+        q.addBindValue(m_current);
+        q.addBindValue(num);
+        q.addBindValue(today);
+        q.exec();
+        return;
+    }
+    q.prepare(QStringLiteral("SELECT box, due FROM review WHERE candidate = ? AND num = ?"));
+    q.addBindValue(m_current);
+    q.addBindValue(num);
+    if (!q.exec() || !q.next())
+        return; // not in the list
+    const int box = q.value(0).toInt();
+    if (q.value(1).toString() > today)
+        return; // right before its review day: it stays where it is
+    QSqlQuery u(m_db);
+    if (box + 1 >= 4) {
+        u.prepare(QStringLiteral("DELETE FROM review WHERE candidate = ? AND num = ?"));
+        u.addBindValue(m_current);
+        u.addBindValue(num);
+    } else {
+        u.prepare(QStringLiteral("UPDATE review SET box = ?, due = ? WHERE candidate = ? AND num = ?"));
+        u.addBindValue(box + 1);
+        u.addBindValue(QDate::fromString(today, Qt::ISODate).addDays(reviewInterval(box + 1)).toString(Qt::ISODate));
+        u.addBindValue(m_current);
+        u.addBindValue(num);
+    }
+    u.exec();
 }
 
 void UserStore::ensureCandidate()
@@ -150,7 +218,7 @@ bool UserStore::removeCandidate(int id)
 {
     QSqlQuery q(m_db);
     m_db.transaction();
-    for (const char *table : {"results", "saved", "asked"}) {
+    for (const char *table : {"results", "saved", "asked", "review"}) {
         q.prepare(QStringLiteral("DELETE FROM %1 WHERE candidate = ?").arg(QLatin1String(table)));
         q.addBindValue(id);
         q.exec();
@@ -221,6 +289,7 @@ int UserStore::addResult(const ResultRecord &r)
     u.prepare(QStringLiteral("INSERT INTO asked(candidate, num, times, correct, wrong, last, last_ok) VALUES(?,?,1,?,?,?,?)"
                              " ON CONFLICT(candidate, num) DO UPDATE SET times = times + 1, correct = correct + excluded.correct,"
                              " wrong = wrong + excluded.wrong, last = excluded.last, last_ok = excluded.last_ok"));
+    const QString today = QDate::currentDate().toString(Qt::ISODate);
     for (const AnswerRecord &a : r.answers) {
         const bool ok = a.chosen == a.answer;
         u.addBindValue(m_current);
@@ -231,6 +300,7 @@ int UserStore::addResult(const ResultRecord &r)
         u.addBindValue(ok ? 1 : 0);
         if (!u.exec())
             qWarning() << "Cannot update statistics" << u.lastError().text();
+        updateReview(a.num, ok, today);
     }
     m_db.commit();
     bump();
@@ -415,11 +485,63 @@ QVector<int> UserStore::wrongNums() const
 {
     QVector<int> out;
     QSqlQuery q(m_db);
-    q.prepare(QStringLiteral("SELECT num FROM asked WHERE candidate = ? AND last_ok = 0 ORDER BY last DESC"));
+    q.prepare(QStringLiteral("SELECT num FROM review WHERE candidate = ? ORDER BY due, num"));
     q.addBindValue(m_current);
     if (q.exec())
         while (q.next())
             out << q.value(0).toInt();
+    return out;
+}
+
+QVector<int> UserStore::dueNums() const
+{
+    QVector<int> out;
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("SELECT num FROM review WHERE candidate = ? AND due <= ? ORDER BY due, num"));
+    q.addBindValue(m_current);
+    q.addBindValue(QDate::currentDate().toString(Qt::ISODate));
+    if (q.exec())
+        while (q.next())
+            out << q.value(0).toInt();
+    return out;
+}
+
+QVariantMap UserStore::reviewSummary() const
+{
+    QVariantMap m;
+    const QString today = QDate::currentDate().toString(Qt::ISODate);
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("SELECT COUNT(*), SUM(due <= ?), MIN(CASE WHEN due > ? THEN due END) FROM review WHERE candidate = ?"));
+    q.addBindValue(today);
+    q.addBindValue(today);
+    q.addBindValue(m_current);
+    int pending = 0, due = 0;
+    QString next;
+    if (q.exec() && q.next()) {
+        pending = q.value(0).toInt();
+        due = q.value(1).toInt();
+        next = q.value(2).toString();
+    }
+    m.insert(QStringLiteral("pending"), pending);
+    m.insert(QStringLiteral("due"), due);
+    QString nextLabel;
+    const QDate d = QDate::fromString(next, Qt::ISODate);
+    if (d.isValid())
+        nextLabel = d == QDate::currentDate().addDays(1) ? QStringLiteral("demain")
+                    : QStringLiteral("le ") + QLocale(QLocale::French, QLocale::France).toString(d, QStringLiteral("d MMMM"));
+    m.insert(QStringLiteral("nextLabel"), nextLabel);
+    return m;
+}
+
+QHash<int, UserStore::AnswerCounts> UserStore::answerCounts() const
+{
+    QHash<int, AnswerCounts> out;
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("SELECT num, correct, wrong, last_ok FROM asked WHERE candidate = ?"));
+    q.addBindValue(m_current);
+    if (q.exec())
+        while (q.next())
+            out.insert(q.value(0).toInt(), {q.value(1).toInt(), q.value(2).toInt(), q.value(3).toInt() != 0});
     return out;
 }
 
@@ -468,8 +590,203 @@ QVariantMap UserStore::questionStats(int num) const
 void UserStore::resetStatistics()
 {
     QSqlQuery q(m_db);
-    q.prepare(QStringLiteral("DELETE FROM asked WHERE candidate = ?"));
-    q.addBindValue(m_current);
-    q.exec();
+    for (const char *table : {"asked", "review"}) {
+        q.prepare(QStringLiteral("DELETE FROM %1 WHERE candidate = ?").arg(QLatin1String(table)));
+        q.addBindValue(m_current);
+        q.exec();
+    }
     bump();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Backup and transfer
+
+namespace {
+
+// A file chosen in the dialog: a local path, or on Android a "content://" document.
+QString filePathOf(const QUrl &url)
+{
+    if (url.isLocalFile())
+        return url.toLocalFile();
+    if (url.scheme() == QLatin1String("content"))
+        return url.toString(QUrl::FullyEncoded);
+    return url.toString(QUrl::PreferLocalFile);
+}
+
+QString copyFile(const QString &from, const QString &to)
+{
+    QFile in(from);
+    if (!in.open(QIODevice::ReadOnly))
+        return QStringLiteral("Lecture impossible : %1").arg(in.errorString());
+    QFile out(to);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return QStringLiteral("Écriture impossible : %1").arg(out.errorString());
+    while (!in.atEnd()) {
+        const QByteArray chunk = in.read(1 << 16);
+        if (chunk.isEmpty()) {
+            if (in.error() != QFileDevice::NoError)
+                return QStringLiteral("Lecture impossible : %1").arg(in.errorString());
+            break;
+        }
+        if (out.write(chunk) != chunk.size())
+            return QStringLiteral("Écriture impossible : %1").arg(out.errorString());
+    }
+    out.close();
+    if (out.error() != QFileDevice::NoError)
+        return QStringLiteral("Écriture impossible : %1").arg(out.errorString());
+    return QString();
+}
+
+QVariantMap summaryOf(const QSqlDatabase &db)
+{
+    QVariantMap m;
+    QSqlQuery q(db);
+    QStringList names;
+    if (q.exec(QStringLiteral("SELECT name FROM candidates ORDER BY id")))
+        while (q.next())
+            names << q.value(0).toString();
+    int results = 0;
+    if (q.exec(QStringLiteral("SELECT COUNT(*) FROM results")) && q.next())
+        results = q.value(0).toInt();
+    int asked = 0;
+    if (q.exec(QStringLiteral("SELECT COUNT(DISTINCT num) FROM asked")) && q.next())
+        asked = q.value(0).toInt();
+    m.insert(QStringLiteral("candidates"), int(names.size()));
+    m.insert(QStringLiteral("names"), names.join(QStringLiteral(", ")));
+    m.insert(QStringLiteral("results"), results);
+    m.insert(QStringLiteral("asked"), asked);
+    return m;
+}
+
+} // namespace
+
+QString UserStore::exportFileName() const
+{
+    return QStringLiteral("Exam1-sauvegarde-%1.exam1").arg(QDate::currentDate().toString(Qt::ISODate));
+}
+
+QString UserStore::stagingPath() const
+{
+    return QDir(QFileInfo(m_path).absolutePath()).filePath(QStringLiteral("user-transfert.sqlite"));
+}
+
+QVariantMap UserStore::contentSummary() const
+{
+    return summaryOf(m_db);
+}
+
+QString UserStore::exportData(const QUrl &target)
+{
+    const QString to = filePathOf(target);
+    if (to.isEmpty())
+        return QStringLiteral("Aucun fichier choisi.");
+    // A consistent and compact copy of the database, written by SQLite itself.
+    const QString tmp = stagingPath();
+    QFile::remove(tmp);
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("VACUUM INTO ?"));
+    q.addBindValue(tmp);
+    if (!q.exec()) {
+        QFile::remove(tmp);
+        return QStringLiteral("Copie impossible : %1").arg(q.lastError().text());
+    }
+    const QString err = copyFile(tmp, to);
+    QFile::remove(tmp);
+    return err;
+}
+
+QVariantMap UserStore::prepareImport(const QUrl &source)
+{
+    QVariantMap m;
+    const auto fail = [this](const QString &error) {
+        QFile::remove(stagingPath());
+        QVariantMap f;
+        f.insert(QStringLiteral("ok"), false);
+        f.insert(QStringLiteral("error"), error);
+        return f;
+    };
+    const QString notBackup = QStringLiteral("Ce fichier n'est pas une sauvegarde d'Exam'1.");
+    const QString from = filePathOf(source);
+    if (from.isEmpty())
+        return fail(QStringLiteral("Aucun fichier choisi."));
+    const QString staged = stagingPath();
+    QFile::remove(staged);
+    QString err = copyFile(from, staged);
+    if (!err.isEmpty())
+        return fail(err);
+    {
+        QFile f(staged);
+        if (!f.open(QIODevice::ReadOnly) || !f.read(16).startsWith("SQLite format 3"))
+            return fail(notBackup);
+    }
+
+    const QString conn = QStringLiteral("userimport");
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), conn);
+        db.setDatabaseName(staged);
+        db.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
+        if (!db.open()) {
+            err = notBackup;
+        } else {
+            QSqlQuery q(db);
+            QSet<QString> tables;
+            if (q.exec(QStringLiteral("SELECT name FROM sqlite_master WHERE type = 'table'")))
+                while (q.next())
+                    tables.insert(q.value(0).toString());
+            int version = 0;
+            if (q.exec(QStringLiteral("PRAGMA user_version")) && q.next())
+                version = q.value(0).toInt();
+            const bool intact = q.exec(QStringLiteral("PRAGMA quick_check")) && q.next()
+                                && q.value(0).toString() == QLatin1String("ok");
+            if (!intact)
+                err = QStringLiteral("La sauvegarde est endommagée.");
+            else if (!tables.contains(QStringLiteral("candidates")) || !tables.contains(QStringLiteral("results"))
+                     || !tables.contains(QStringLiteral("asked")) || !tables.contains(QStringLiteral("saved")))
+                err = notBackup;
+            else if (version > schemaVersion)
+                err = QStringLiteral("Cette sauvegarde vient d'une version plus récente d'Exam'1 : mettez d'abord l'application à jour.");
+            else {
+                m = summaryOf(db);
+                if (m.value(QStringLiteral("candidates")).toInt() == 0)
+                    err = QStringLiteral("La sauvegarde ne contient aucun candidat.");
+            }
+            q.finish();
+        }
+        db.close();
+    }
+    QSqlDatabase::removeDatabase(conn);
+    if (!err.isEmpty())
+        return fail(err);
+    m.insert(QStringLiteral("ok"), true);
+    return m;
+}
+
+void UserStore::cancelImport()
+{
+    QFile::remove(stagingPath());
+}
+
+QString UserStore::commitImport()
+{
+    const QString staged = stagingPath();
+    if (!QFileInfo::exists(staged))
+        return QStringLiteral("Aucune sauvegarde à importer.");
+    const QString previous = QDir(QFileInfo(m_path).absolutePath()).filePath(QStringLiteral("user-avant-import.sqlite"));
+    m_db.close();
+    QFile::remove(previous);
+    QString err;
+    if (!QFile::rename(m_path, previous)) {
+        err = QStringLiteral("Impossible de mettre de côté les données actuelles.");
+    } else if (!QFile::rename(staged, m_path)) {
+        err = QStringLiteral("Impossible de mettre la sauvegarde en place.");
+        QFile::rename(previous, m_path);
+    }
+    QFile::remove(staged);
+    // The imported data, or the current data again if something went wrong.
+    if (!open() && err.isEmpty())
+        err = QStringLiteral("Les données importées ne s'ouvrent pas.");
+    emit currentCandidateChanged();
+    emit savedChanged();
+    bump();
+    return err;
 }

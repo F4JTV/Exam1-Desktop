@@ -3,9 +3,12 @@
 #pragma once
 
 #include <QObject>
+#include <QHash>
 #include <QSet>
 #include <QSqlDatabase>
+#include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QVector>
 
 class UserStore : public QObject
@@ -69,11 +72,36 @@ public:
     QVector<int> savedNums() const;
 
     // Statistics
-    QVector<int> wrongNums() const;          // last answer was wrong or blank
+    // "Mes erreurs", reviewed with spaced repetition: a question answered wrong is to be reviewed
+    // the same day; each right answer on or after its review day puts it off (1, 3, then 7 days),
+    // and the 4th takes it out of the list. A wrong answer starts it again.
+    QVector<int> wrongNums() const;          // all the questions of the list, the first due first
+    QVector<int> dueNums() const;            // those to review today
+    Q_INVOKABLE QVariantMap reviewSummary() const; // pending, due, nextLabel (next review day)
+    static int reviewInterval(int box); // days before the next review, after a right answer
+    struct AnswerCounts {
+        int correct = 0;
+        int wrong = 0;      // wrong or blank
+        bool lastOk = false;
+    };
+    QHash<int, AnswerCounts> answerCounts() const; // the questions already asked
     QSet<int> askedNums() const;
     QHash<int, int> timesAsked() const;
     Q_INVOKABLE QVariantMap questionStats(int num) const;
     Q_INVOKABLE void resetStatistics();
+
+    // Backup and transfer: all the user data (candidates, results, statistics, errors to review,
+    // saved questions) in one file, to keep it or to carry it to another computer or phone.
+    Q_INVOKABLE QString exportFileName() const;              // "Exam1-sauvegarde-2026-10-31.exam1"
+    Q_INVOKABLE QString exportData(const QUrl &target);      // empty on success, else the error
+    // Import in two steps: the chosen file is copied and checked (candidates, results, error),
+    // then, once confirmed, it replaces the data of this device. A copy of the replaced data is
+    // kept next to it (user-avant-import.sqlite).
+    Q_INVOKABLE QVariantMap prepareImport(const QUrl &source);
+    Q_INVOKABLE QString commitImport();
+    Q_INVOKABLE void cancelImport();
+    Q_INVOKABLE QVariantMap contentSummary() const;          // candidates, names, results of this device
+    static constexpr int schemaVersion = 1;
 
 signals:
     void currentCandidateChanged();
@@ -81,13 +109,17 @@ signals:
     void dataChanged();
 
 private:
+    bool open();
+    QString stagingPath() const;
     void ensureSchema();
+    void updateReview(int num, bool right, const QString &today);
     void ensureCandidate();
     void loadSaved();
     void bump();
 
     QSqlDatabase m_db;
     QString m_connection;
+    QString m_path;
     int m_current = 0;
     QSet<int> m_saved;
     int m_revision = 0;

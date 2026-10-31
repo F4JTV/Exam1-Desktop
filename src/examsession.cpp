@@ -227,8 +227,17 @@ QVector<int> ExamSession::pick(QVector<int> pool, int n) const
     return pool;
 }
 
-QVector<int> ExamSession::drawFromThemes(const QList<int> &themes, int total) const
+QVector<int> ExamSession::drawFromThemes(const QList<int> &themes, int total, const QHash<int, int> *rank) const
 {
+    const auto draw = [this, rank](QVector<int> pool, int n) {
+        if (!rank)
+            return pick(pool, n);
+        std::shuffle(pool.begin(), pool.end(), *QRandomGenerator::global());
+        std::stable_sort(pool.begin(), pool.end(), [rank](int a, int b) { return rank->value(a) < rank->value(b); });
+        if (n < pool.size())
+            pool.resize(n);
+        return pool;
+    };
     QVector<int> picked;
     if (themes.isEmpty() || total <= 0)
         return picked;
@@ -242,7 +251,7 @@ QVector<int> ExamSession::drawFromThemes(const QList<int> &themes, int total) co
         const int want = base + (i < rem ? 1 : 0);
         if (want == 0)
             continue;
-        const QVector<int> got = pick(m_bank->numsForTheme(order.at(i)), want);
+        const QVector<int> got = draw(m_bank->numsForTheme(order.at(i)), want);
         picked += got;
         shortfall += want - got.size();
     }
@@ -254,7 +263,7 @@ QVector<int> ExamSession::drawFromThemes(const QList<int> &themes, int total) co
             for (int n : m_bank->numsForTheme(t))
                 if (!already.contains(n))
                     pool << n;
-        picked += pick(pool, shortfall);
+        picked += draw(pool, shortfall);
     }
     std::shuffle(picked.begin(), picked.end(), *QRandomGenerator::global());
     return picked;
@@ -405,9 +414,16 @@ int ExamSession::reviewAvailable(const QString &source) const
         return n;
     }
     if (source == QLatin1String("wrong")) {
+        // The errors to review today (spaced repetition).
         int n = 0;
-        for (int num : m_user->wrongNums())
+        for (int num : m_user->dueNums())
             n += m_bank->find(num) ? 1 : 0;
+        return n;
+    }
+    if (source == QLatin1String("weak")) {
+        int n = 0;
+        for (int t : weakThemes())
+            n += m_bank->numsForTheme(t).size();
         return n;
     }
     if (source == QLatin1String("unseen")) {
@@ -428,8 +444,25 @@ bool ExamSession::startReview(const QString &source, int questionCount, bool ins
         pool = m_user->savedNums();
         title = QStringLiteral("Révision des questions enregistrées");
     } else if (source == QLatin1String("wrong")) {
-        pool = m_user->wrongNums();
+        pool = m_user->dueNums();
         title = QStringLiteral("Révision des erreurs");
+    } else if (source == QLatin1String("weak")) {
+        // The weak themes, evenly; in each one the questions last answered wrong first, then those
+        // never asked, then the others.
+        const QList<int> themes = weakThemes();
+        const QHash<int, UserStore::AnswerCounts> counts = m_user->answerCounts();
+        QHash<int, int> rank;
+        int total = 0;
+        for (int t : themes)
+            for (int num : m_bank->numsForTheme(t)) {
+                const auto it = counts.constFind(num);
+                rank.insert(num, it == counts.cend() ? 1 : (it->lastOk ? 2 : 0));
+                ++total;
+            }
+        const QVector<int> nums = drawFromThemes(themes, questionCount > 0 ? qMin(questionCount, total) : total, &rank);
+        m_extended = false;
+        return begin(nums, QStringLiteral("review"), categoryOf(m_bank, nums), QStringLiteral("Révision des thèmes faibles"),
+                     plural(nums.size(), QStringLiteral("question"), QStringLiteral("questions")), 0, instantCorrection);
     } else {
         const QSet<int> asked = m_user->askedNums();
         for (const Question &q : m_bank->questions())
@@ -443,6 +476,54 @@ bool ExamSession::startReview(const QString &source, int questionCount, bool ins
     m_extended = false;
     return begin(nums, QStringLiteral("review"), categoryOf(m_bank, nums), title,
                  plural(nums.size(), QStringLiteral("question"), QStringLiteral("questions")), 0, instantCorrection);
+}
+
+QVariantList ExamSession::themeStats(const QString &category) const
+{
+    const Themes::Category cat = Themes::categoryFromKey(category);
+    const QList<Themes::Theme> &list = cat == Themes::Technique ? Themes::technique() : Themes::reglementation();
+    const QHash<int, UserStore::AnswerCounts> counts = m_user->answerCounts();
+    QVariantList out;
+    for (const Themes::Theme &t : list) {
+        const QVector<int> nums = m_bank->numsForTheme(t.id);
+        int seen = 0, correct = 0, answers = 0;
+        for (int num : nums) {
+            const auto it = counts.constFind(num);
+            if (it == counts.cend())
+                continue;
+            ++seen;
+            correct += it->correct;
+            answers += it->correct + it->wrong;
+        }
+        const double rate = answers > 0 ? double(correct) / answers : -1.0;
+        QVariantMap m;
+        m.insert(QStringLiteral("id"), t.id);
+        m.insert(QStringLiteral("name"), t.name);
+        m.insert(QStringLiteral("questions"), int(nums.size()));
+        m.insert(QStringLiteral("seen"), seen);
+        m.insert(QStringLiteral("answers"), answers);
+        m.insert(QStringLiteral("correct"), correct);
+        m.insert(QStringLiteral("rate"), rate);
+        m.insert(QStringLiteral("weak"), !nums.isEmpty() && answers >= weakMinAnswers && rate < weakRate);
+        out << m;
+    }
+    return out;
+}
+
+QList<int> ExamSession::weakThemes() const
+{
+    QList<QPair<double, int>> weak;
+    for (const QString &cat : {QStringLiteral("technique"), QStringLiteral("reglementation")})
+        for (const QVariant &v : themeStats(cat)) {
+            const QVariantMap m = v.toMap();
+            if (m.value(QStringLiteral("weak")).toBool())
+                weak << qMakePair(m.value(QStringLiteral("rate")).toDouble(), m.value(QStringLiteral("id")).toInt());
+        }
+    std::stable_sort(weak.begin(), weak.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+    QList<int> out;
+    for (const auto &w : weak)
+        out << w.second;
+    return out;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -694,6 +775,13 @@ void ExamSession::scheduleSave()
 QString ExamSession::lastSavedLabel() const
 {
     return m_lastSaved.isValid() ? m_lastSaved.toString(QStringLiteral("HH:mm:ss")) : QString();
+}
+
+void ExamSession::saveProgress()
+{
+    if (m_saveTimer.isActive())
+        m_saveTimer.stop();
+    saveNow();
 }
 
 void ExamSession::saveNow()
